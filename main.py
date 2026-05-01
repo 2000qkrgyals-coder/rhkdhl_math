@@ -247,17 +247,25 @@ with tab_input:
         st.success("✅ 로컬 DB 저장 및 노션 공유 완료!")
         trigger_reset(); st.rerun()
 
-# --- Tab 2 & 3 (기존 내용 100% 유지) ---
+# --- [수정 예시] 탭 2 조회 부분 ---
 with tab_search:
     if not all_recs.empty:
         sort_recs = all_recs.sort_values(['date', 'session'], ascending=False)
         v_list = [f"{r['date'].strftime('%Y-%m-%d')} ({r['session']}회차)" for _, r in sort_recs.iterrows()]
         sel_v = st.selectbox("조회할 기록", v_list)
         row = sort_recs.iloc[v_list.index(sel_v)]
+        
         if st.button("✏️ 이 기록 수정"):
             st.session_state.edit_mode, st.session_state.edit_target_id, st.session_state.edit_data = True, row['id'], row
             st.rerun()
-      st.write("**[숙제 이행도]**")
+
+        # 아래 줄들의 시작 위치(수직 라인)를 위의 st.button과 똑같이 맞춰주세요!
+        st.write("**[숙제 이행도]**")
+        hw_data = io.StringIO(row['homeworks']) 
+        st.dataframe(pd.read_json(hw_data), use_container_width=True)
+        
+        st.write("**[수업 특이사항]**")
+        st.info(json.loads(row['solved_problems'])[0]['요약'])
 # 데이터를 StringIO로 감싸서 '파일이 아니라 글자야!'라고 알려줍니다.
 hw_data = io.StringIO(row['homeworks']) 
 st.dataframe(pd.read_json(hw_data), use_container_width=True)
