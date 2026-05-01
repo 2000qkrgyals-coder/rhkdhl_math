@@ -5,6 +5,41 @@ from datetime import datetime, time
 import json
 import requests  # 노션 연동을 위해 추가
 
+# --- [추가] 로그인 체크 함수 ---
+def check_password():
+    def password_entered():
+        if (st.session_state["username"] == st.secrets["LOGIN_ID"] and 
+            st.session_state["password"] == st.secrets["LOGIN_PW"]):
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]  # 보안을 위해 비번 삭제
+            del st.session_state["username"]
+        else:
+            st.session_state["password_correct"] = False
+
+    if "password_correct" not in st.session_state:
+        # 로그인 화면 출력
+        st.title("🔒 과외 관리 시스템 로그인")
+        st.text_input("아이디", key="qkrgyals2000")
+        st.text_input("비밀번호", type="qkrgyals2000", key="qkrgyals2000")
+        st.button("로그인", on_click=password_entered)
+        return False
+    elif not st.session_state["password_correct"]:
+        # 비밀번호가 틀렸을 때
+        st.title("🔒 과외 관리 시스템 로그인")
+        st.text_input("아이디", key="username")
+        st.text_input("비밀번호", type="password", key="password")
+        st.button("로그인", on_click=password_entered)
+        st.error("😕 아이디 또는 비밀번호가 틀렸습니다.")
+        return False
+    else:
+        return True
+
+# 로그인 통과 못하면 프로그램 중단
+if not check_password():
+    st.stop()
+
+# --- 여기서부터 기존 선생님의 코드가 시작됩니다 ---
+
 # --- [수정] 0. 노션 설정 정보 ---
 # 진짜 키를 적지 않고, 금고(secrets)에서 꺼내오도록 설정합니다.
 import streamlit as st
