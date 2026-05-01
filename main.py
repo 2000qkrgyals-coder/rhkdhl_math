@@ -6,31 +6,39 @@ import json
 import requests  # 노션 연동을 위해 추가
 
 # --- [추가] 로그인 체크 함수 ---
+# --- [수정] 로그인 체크 함수 (중복 제거 버전) ---
 def check_password():
+    """아이디와 비밀번호가 맞는지 확인하고 로그인 상태를 유지합니다."""
+
     def password_entered():
+        # secrets에 저장된 정보와 입력값이 맞는지 확인
         if (st.session_state["username"] == st.secrets["LOGIN_ID"] and 
             st.session_state["password"] == st.secrets["LOGIN_PW"]):
             st.session_state["password_correct"] = True
-            del st.session_state["password"]  # 보안을 위해 비번 삭제
+            # 보안을 위해 입력했던 정보는 즉시 삭제
+            del st.session_state["password"]  
             del st.session_state["username"]
         else:
             st.session_state["password_correct"] = False
 
+    # 1. 처음 접속했거나 로그인이 안 된 상태
     if "password_correct" not in st.session_state:
-        # 로그인 화면 출력
         st.title("🔒 과외 관리 시스템 로그인")
-        st.text_input("아이디", key="qkrgyals2000")
-        st.text_input("비밀번호", type="qkrgyals2000", key="qkrgyals2000")
+        st.text_input("아이디", key="username")
+        st.text_input("비밀번호", type="password", key="password") # type="password"로 해야 별표로 가려집니다.
         st.button("로그인", on_click=password_entered)
         return False
+
+    # 2. 로그인을 시도했는데 틀린 경우
     elif not st.session_state["password_correct"]:
-        # 비밀번호가 틀렸을 때
         st.title("🔒 과외 관리 시스템 로그인")
         st.text_input("아이디", key="username")
         st.text_input("비밀번호", type="password", key="password")
         st.button("로그인", on_click=password_entered)
-        st.error("😕 아이디 또는 비밀번호가 틀렸습니다.")
+        st.error("😕 아이디 또는 비밀번호가 틀렸습니다.") # 틀렸다는 메시지만 추가로 띄움
         return False
+
+    # 3. 로그인 성공 상태
     else:
         return True
 
