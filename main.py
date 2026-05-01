@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import datetime, time
 import json
 import requests  # 노션 연동을 위해 추가
+import io
 
 # --- [추가] 로그인 체크 함수 ---
 # --- [수정] 로그인 체크 함수 (중복 제거 버전) ---
@@ -256,8 +257,10 @@ with tab_search:
         if st.button("✏️ 이 기록 수정"):
             st.session_state.edit_mode, st.session_state.edit_target_id, st.session_state.edit_data = True, row['id'], row
             st.rerun()
-        st.write("**[숙제 이행도]**"); st.dataframe(pd.read_json(row['homeworks']), use_container_width=True)
-        st.write("**[수업 특이사항]**"); st.info(json.loads(row['solved_problems'])[0]['요약'])
+      st.write("**[숙제 이행도]**")
+# 데이터를 StringIO로 감싸서 '파일이 아니라 글자야!'라고 알려줍니다.
+hw_data = io.StringIO(row['homeworks']) 
+st.dataframe(pd.read_json(hw_data), use_container_width=True)
 
 with tab_analysis:
     if not all_recs.empty:
