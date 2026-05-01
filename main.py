@@ -144,7 +144,7 @@ with tab_input:
     u_key = f"{st.session_state.reset_count}"
     if st.session_state.edit_mode and st.session_state.edit_data is not None:
         ed = st.session_state.edit_data
-        st.info(f"수정 모드: {pd.to_datetime(ed['date']).strftime('%Y-%m-%d')} ({ed['session']}회차)")
+        st.info(f"📍 수정 중: {pd.to_datetime(ed['date']).strftime('%Y-%m-%d')} ({ed['session']}회차)")
         i_date, i_sess = pd.to_datetime(ed['date']), int(ed['session'])
         i_hw = pd.read_json(io.StringIO(ed['homeworks']))
         i_pr = pd.read_json(io.StringIO(ed['progress_list']))
@@ -206,7 +206,7 @@ with tab_input:
         st_code = save_to_notion({"name": sel_name, "date": sel_date.strftime("%Y-%m-%d"), "session": int(in_sess), "hw_df": ed_hw, "pr_df": ed_pr, "memo": in_memo, "nhw_df": ed_nhw, "feedback": in_feed})
         
         if st_code == 200: st.success("✅ 저장 및 노션 공유 완료!")
-        else: st.warning(f"⚠️ 저장 완료(노션 연동 실패 {st_code}). 연결 확인 필요.")
+        else: st.warning(f"⚠️ 저장 완료(단, 노션 공유 실패: {st_code}). 노션 API 토큰과 데이터베이스 ID를 확인하세요.")
         trigger_reset(); st.rerun()
 
 # --- [TAB 2: 상세 내역 조회] ---
@@ -217,10 +217,27 @@ with tab_search:
         sel_v = st.selectbox("조회할 수업 날짜 선택", v_list)
         row = sort_recs.iloc[v_list.index(sel_v)]
         
-        if st.button("✏️ 이 기록 수정하기"):
+        # 수정/삭제 버튼 레이아웃
+        bc1, bc2, bc3 = st.columns([1, 1, 2])
+        if bc1.button("✏️ 기록 수정하기", use_container_width=True):
             st.session_state.edit_mode, st.session_state.edit_target_id, st.session_state.edit_data = True, row['id'], row
             st.rerun()
+            
+        # 삭제 기능 추가
+        with bc2:
+            with st.popover("🗑️ 기록 삭제"):
+                st.warning("정말 삭제하시겠습니까? (DB에서 영구 삭제됩니다.)")
+                confirm_del = st.checkbox("네, 삭제를 확인했습니다.")
+                if st.button("영구 삭제 수행", type="primary"):
+                    if confirm_del:
+                        c.execute("DELETE FROM progress WHERE id=?", (int(row['id']),))
+                        conn.commit()
+                        st.success("삭제되었습니다.")
+                        st.rerun()
+                    else:
+                        st.error("체크박스를 선택해주세요.")
 
+        st.divider()
         c1, c2 = st.columns(2)
         with c1:
             st.write("**📝 숙제 수행 결과**")
@@ -242,32 +259,37 @@ with tab_analysis:
     if not all_recs.empty:
         analysis_data = []
         for _, r in all_recs.iterrows():
-            hw = pd.read_json(io.StringIO(r['homeworks']))
-            tot = pd.to_numeric(hw['총 문항']).sum() if not hw.empty else 0
-            sol = (pd.to_numeric(hw['푼 문항']).sum() + pd.to_numeric(hw['모름']).sum()) if not hw.empty else 0
-            analysis_data.append({
-                "날짜": r['date'], 
-                "회차": f"{r['session']}회", 
-                "성취도": round(sol/tot*100, 1) if tot > 0 else 0,
-                "주별": r['date'].to_period('W').start_time.strftime('%Y-%m-%d'),
-                "월별": r['date'].strftime('%Y-%m')
-            })
-        df_an = pd.DataFrame(analysis_data).sort_values("날짜")
-        
-        opt = st.radio("분석 단위", ["일별 전체", "주별 상세", "월별 상세"], horizontal=True)
-        
-        if opt == "일별 전체":
-            st.line_chart(df_an.set_index('날짜')['성취도'])
-            st.dataframe(df_an.sort_values("날짜", ascending=False), use_container_width=True)
-        elif opt == "주별 상세":
-            target_w = st.selectbox("주 선택", sorted(df_an['주별'].unique(), reverse=True))
-            filtered = df_an[df_an['주별'] == target_w]
-            st.bar_chart(filtered.set_index('회차')['성취도'])
-            st.dataframe(filtered, use_container_width=True)
-        elif opt == "월별 상세":
-            target_m = st.selectbox("월 선택", sorted(df_an['월별'].unique(), reverse=True))
-            filtered = df_an[df_an['월별'] == target_m]
-            st.bar_chart(filtered.set_index('회차')['성취도'])
-            st.dataframe(filtered, use_container_width=True)
+            try:
+                hw = pd.read_json(io.StringIO(r['homeworks']))
+                tot = pd.to_numeric(hw['총 문항']).sum() if not hw.empty else 0
+                sol = (pd.to_numeric(hw['푼 문항']).sum() + pd.to_numeric(hw['모름']).sum()) if not hw.empty else 0
+                analysis_data.append({
+                    "날짜": r['date'], 
+                    "회차": f"{r['session']}회", 
+                    "성취도": round(sol/tot*100, 1) if tot > 0 else 0,
+                    "주별": r['date'].to_period('W').start_time.strftime('%Y-%m-%d'),
+                    "월별": r['date'].strftime('%Y-%m')
+                })
+            except: continue
+            
+        if analysis_data:
+            df_an = pd.DataFrame(analysis_data).sort_values("날짜")
+            opt = st.radio("분석 단위", ["일별 전체", "주별 상세", "월별 상세"], horizontal=True)
+            
+            if opt == "일별 전체":
+                st.line_chart(df_an.set_index('날짜')['성취도'])
+                st.dataframe(df_an.sort_values("날짜", ascending=False), use_container_width=True)
+            elif opt == "주별 상세":
+                target_w = st.selectbox("주 선택", sorted(df_an['주별'].unique(), reverse=True))
+                filtered = df_an[df_an['주별'] == target_w]
+                st.bar_chart(filtered.set_index('회차')['성취도'])
+                st.dataframe(filtered, use_container_width=True)
+            elif opt == "월별 상세":
+                target_m = st.selectbox("월 선택", sorted(df_an['월별'].unique(), reverse=True))
+                filtered = df_an[df_an['월별'] == target_m]
+                st.bar_chart(filtered.set_index('회차')['성취도'])
+                st.dataframe(filtered, use_container_width=True)
+        else:
+            st.write("분석할 수 있는 숙제 데이터가 없습니다.")
     else:
-        st.write("분석할 데이터가 부족합니다.")
+        st.write("기록이 없습니다.")
