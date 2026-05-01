@@ -274,8 +274,12 @@ with tab_analysis:
     if not all_recs.empty:
         analysis_list = []
         for _, r in all_recs.iterrows():
-            hw = pd.read_json(r['homeworks'])
+            # 데이터를 글자로 인식하도록 StringIO로 감싸줍니다.
+            hw_raw = io.StringIO(r['homeworks']) 
+            hw = pd.read_json(hw_raw) 
+            
             tot = pd.to_numeric(hw['총 문항']).sum() if not hw.empty else 0
+            # ... (이후 동일)
             sol = (pd.to_numeric(hw['푼 문항']).sum() + pd.to_numeric(hw['모름']).sum()) if not hw.empty else 0
             analysis_list.append({
                 "날짜": r['date'], "회차": f"{r['session']}회", "성취도": round(sol/tot*100, 1) if tot > 0 else 0,
