@@ -46,9 +46,19 @@ def save_to_notion(data):
         "Content-Type": "application/json",
         "Notion-Version": "2022-06-28"
     }
-    hw_summary = "".join([f"• {r.get('분류','')}: {r.get('푼 문항',0)}/{r.get('총 문항',0)} (모름:{r.get('모름',0)})\n" for _, r in data['hw_df'].iterrows()])
+    
+    # 숙제 데이터가 비어있는 경우 처리
+    if data['hw_df'].empty:
+        hw_summary = "• 숙제 없음"
+    else:
+        hw_summary = "".join([f"• {r.get('분류','')}: {r.get('푼 문항',0)}/{r.get('총 문항',0)} (모름:{r.get('모름',0)})\n" for _, r in data['hw_df'].iterrows()])
+    
     pr_summary = f"메모: {data['memo']}\n" + "".join([f"• {r.get('분류','')}: {r.get('단원/개념','')} ({r.get('특이사항','')})\n" for _, r in data['pr_df'].iterrows()])
-    nhw_summary = "".join([f"• {r.get('분류','')}: {r.get('범위','')} ({r.get('세부지시','')})\n" for _, r in data['nhw_df'].iterrows()])
+    
+    if data['nhw_df'].empty:
+        nhw_summary = "• 숙제 없음"
+    else:
+        nhw_summary = "".join([f"• {r.get('분류','')}: {r.get('범위','')} ({r.get('세부지시','')})\n" for _, r in data['nhw_df'].iterrows()])
 
     payload = {
         "parent": {"database_id": DATABASE_ID},
@@ -122,7 +132,19 @@ with st.sidebar:
     curr_books = json.loads([r[1] for r in res if r[0] == sel_name][0])
 
     st.subheader(f"📚 {sel_name}의 교재")
-    for b in curr_books: st.text(f"• {b}")
+    # 교재 표시 및 삭제 기능 추가
+    if not curr_books:
+        st.caption("등록된 교재가 없습니다.")
+    else:
+        for i, b in enumerate(curr_books):
+            col_b1, col_b2 = st.columns([4, 1])
+            col_b1.text(f"• {b}")
+            if col_b2.button("🗑️", key=f"del_book_{i}"):
+                curr_books.pop(i)
+                c.execute("UPDATE students SET books=? WHERE name=?", (json.dumps(curr_books), sel_name))
+                conn.commit()
+                st.rerun()
+
     nb = st.text_input("새 교재 추가")
     if st.button("교재 저장") and nb:
         curr_books.append(nb)
@@ -133,7 +155,9 @@ with st.sidebar:
     if st.button("🔄 새 수업 입력으로 전환", use_container_width=True): trigger_reset(); st.rerun()
 
 all_recs = pd.read_sql_query(f"SELECT * FROM progress WHERE name='{sel_name}'", conn)
-all_recs['date'] = pd.to_datetime(all_recs['date'])
+# 데이터가 있을 때만 날짜 변환
+if not all_recs.empty:
+    all_recs['date'] = pd.to_datetime(all_recs['date'])
 
 # --- [5. 메인 화면] ---
 st.title(f"📖 {sel_name} 학생 관리")
@@ -173,21 +197,38 @@ with tab_input:
 
     st.divider()
     st.markdown("#### 2️⃣ 오늘 숙제 달성도 확인")
-    if not st.session_state.edit_mode and not all_recs.empty:
-        if st.button("💡 지난번 내준 숙제 양식 가져오기"):
-            raw_next = pd.read_json(io.StringIO(all_recs.sort_values(['date', 'session']).iloc[-1]['next_hw_list']))
-            st.session_state.temp_hw_data = pd.DataFrame({"분류": raw_next["분류"], "범위": raw_next["범위"], "총 문항":0, "푼 문항":0, "모름":0, "안함":0})
-            st.rerun()
-    ed_hw = st.data_editor(i_hw, num_rows="dynamic", use_container_width=True, key=f"hw_{u_key}", column_config={"분류": st.column_config.SelectboxColumn("교재", options=curr_books)})
     
+    # 숙제 없음 체크박스 (오늘 숙제)
+    no_hw_today = st.checkbox("오늘 확인해야 할 숙제 없음", key=f"no_hw_today_{u_key}")
+    
+    if not no_hw_today:
+        if not st.session_state.edit_mode and not all_recs.empty:
+            if st.button("💡 지난번 내준 숙제 양식 가져오기"):
+                raw_next = pd.read_json(io.StringIO(all_recs.sort_values(['date', 'session']).iloc[-1]['next_hw_list']))
+                st.session_state.temp_hw_data = pd.DataFrame({"분류": raw_next["분류"], "범위": raw_next["범위"], "총 문항":0, "푼 문항":0, "모름":0, "안함":0})
+                st.rerun()
+        ed_hw = st.data_editor(i_hw, num_rows="dynamic", hide_index=True, use_container_width=True, key=f"hw_{u_key}", column_config={"분류": st.column_config.SelectboxColumn("교재", options=curr_books)})
+    else:
+        ed_hw = pd.DataFrame(columns=["분류", "범위", "총 문항", "푼 문항", "모름", "안함"])
+        st.info("오늘 숙제 확인을 건너뜁니다.")
+
     st.divider()
     st.markdown("#### 3️⃣ 오늘 진도 및 수업 메모")
-    ed_pr = st.data_editor(i_pr, num_rows="dynamic", use_container_width=True, key=f"pr_{u_key}", column_config={"분류": st.column_config.SelectboxColumn("교재", options=curr_books)})
+    ed_pr = st.data_editor(i_pr, num_rows="dynamic", hide_index=True, use_container_width=True, key=f"pr_{u_key}", column_config={"분류": st.column_config.SelectboxColumn("교재", options=curr_books)})
     in_memo = st.text_area("상세 피드백", value=i_memo, key=f"m_{u_key}")
 
     st.divider()
     st.markdown("#### 4️⃣ 다음 숙제 및 피드백")
-    ed_nhw = st.data_editor(i_nhw, num_rows="dynamic", use_container_width=True, key=f"nhw_{u_key}", column_config={"분류": st.column_config.SelectboxColumn("교재", options=curr_books)})
+    
+    # 숙제 없음 체크박스 (다음 숙제)
+    no_hw_next = st.checkbox("다음 숙제 없음", key=f"no_hw_next_{u_key}")
+    
+    if not no_hw_next:
+        ed_nhw = st.data_editor(i_nhw, num_rows="dynamic", hide_index=True, use_container_width=True, key=f"nhw_{u_key}", column_config={"분류": st.column_config.SelectboxColumn("교재", options=curr_books)})
+    else:
+        ed_nhw = pd.DataFrame(columns=["분류", "범위", "세부지시"])
+        st.info("다음 숙제가 없습니다.")
+        
     in_feed = st.text_area("학부모 메시지", value=i_feed, key=f"f_{u_key}")
 
     if st.button("💾 최종 저장 및 노션 공유", type="primary", use_container_width=True):
@@ -217,13 +258,11 @@ with tab_search:
         sel_v = st.selectbox("조회할 수업 날짜 선택", v_list)
         row = sort_recs.iloc[v_list.index(sel_v)]
         
-        # 수정/삭제 버튼 레이아웃
         bc1, bc2, bc3 = st.columns([1, 1, 2])
         if bc1.button("✏️ 기록 수정하기", use_container_width=True):
             st.session_state.edit_mode, st.session_state.edit_target_id, st.session_state.edit_data = True, row['id'], row
             st.rerun()
             
-        # 삭제 기능 추가
         with bc2:
             with st.popover("🗑️ 기록 삭제"):
                 st.warning("정말 삭제하시겠습니까? (DB에서 영구 삭제됩니다.)")
@@ -241,14 +280,20 @@ with tab_search:
         c1, c2 = st.columns(2)
         with c1:
             st.write("**📝 숙제 수행 결과**")
-            st.dataframe(pd.read_json(io.StringIO(row['homeworks'])), use_container_width=True)
+            hw_display = pd.read_json(io.StringIO(row['homeworks']))
+            if hw_display.empty: st.info("숙제 기록이 없습니다.")
+            else: st.dataframe(hw_display, use_container_width=True, hide_index=True)
         with c2:
             st.write("**📖 진도 및 상세 피드백**")
-            st.dataframe(pd.read_json(io.StringIO(row['progress_list'])), use_container_width=True)
+            pr_display = pd.read_json(io.StringIO(row['progress_list']))
+            st.dataframe(pr_display, use_container_width=True, hide_index=True)
             st.info(json.loads(row['solved_problems'])[0]['요약'])
         
         st.write("**📋 다음 수업 숙제**")
-        st.dataframe(pd.read_json(io.StringIO(row['next_hw_list'])), use_container_width=True)
+        nhw_display = pd.read_json(io.StringIO(row['next_hw_list']))
+        if nhw_display.empty: st.info("다음 숙제가 없습니다.")
+        else: st.dataframe(nhw_display, use_container_width=True, hide_index=True)
+        
         st.write("**✉️ 학부모 전송 피드백**")
         st.success(row['feedback'] if row['feedback'] else "입력된 피드백이 없습니다.")
     else:
@@ -261,8 +306,9 @@ with tab_analysis:
         for _, r in all_recs.iterrows():
             try:
                 hw = pd.read_json(io.StringIO(r['homeworks']))
-                tot = pd.to_numeric(hw['총 문항']).sum() if not hw.empty else 0
-                sol = (pd.to_numeric(hw['푼 문항']).sum() + pd.to_numeric(hw['모름']).sum()) if not hw.empty else 0
+                if hw.empty: continue
+                tot = pd.to_numeric(hw['총 문항']).sum()
+                sol = (pd.to_numeric(hw['푼 문항']).sum() + pd.to_numeric(hw['모름']).sum())
                 analysis_data.append({
                     "날짜": r['date'], 
                     "회차": f"{r['session']}회", 
@@ -278,18 +324,21 @@ with tab_analysis:
             
             if opt == "일별 전체":
                 st.line_chart(df_an.set_index('날짜')['성취도'])
-                st.dataframe(df_an.sort_values("날짜", ascending=False), use_container_width=True)
+                st.dataframe(df_an.sort_values("날짜", ascending=False), use_container_width=True, hide_index=True)
             elif opt == "주별 상세":
                 target_w = st.selectbox("주 선택", sorted(df_an['주별'].unique(), reverse=True))
                 filtered = df_an[df_an['주별'] == target_w]
                 st.bar_chart(filtered.set_index('회차')['성취도'])
-                st.dataframe(filtered, use_container_width=True)
+                st.dataframe(filtered, use_container_width=True, hide_index=True)
             elif opt == "월별 상세":
                 target_m = st.selectbox("월 선택", sorted(df_an['월별'].unique(), reverse=True))
                 filtered = df_an[df_an['월별'] == target_m]
                 st.bar_chart(filtered.set_index('회차')['성취도'])
-                st.dataframe(filtered, use_container_width=True)
+                st.dataframe(filtered, use_container_width=True, hide_index=True)
         else:
+            st.write("분석할 수 있는 숙제 데이터가 없습니다.")
+    else:
+        st.write("기록이 없습니다.")
             st.write("분석할 수 있는 숙제 데이터가 없습니다.")
     else:
         st.write("기록이 없습니다.")
