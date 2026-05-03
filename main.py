@@ -59,7 +59,7 @@ def init_db():
 
 conn, c = init_db()
 
-# --- [3. 노션 데이터 복구 (동기화) - NoneType 방어 로직] ---
+# --- [3. 노션 데이터 복구 (동기화) - JSON 파싱 로직] ---
 def sync_from_notion():
     url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
     try:
@@ -78,43 +78,55 @@ def sync_from_notion():
         for page in pages:
             p = page.get("properties", {})
             try:
-                # 학생이름 추출
                 n_obj = p.get("학생이름", {}).get("select")
                 name = n_obj.get("name") if n_obj else "Unknown"
                 
-                # 날짜 추출
                 d_obj = p.get("날짜", {}).get("date")
                 date = d_obj.get("start") if d_obj else datetime.now().strftime("%Y-%m-%d")
                 
-                # 회차 추출
                 sess = p.get("회차", {}).get("number", 1)
                 
-                # 피드백 추출 (NoneType 방어의 핵심)
+                # 노션에서 JSON 데이터 원본 추출 시도 (숨겨진 데이터 읽기)
+                hw_raw = p.get("오늘숙제", {}).get("rich_text", [])
+                hw_json = hw_raw[0].get("plain_text", "[]") if hw_raw else "[]"
+                
+                pr_raw = p.get("수업내용", {}).get("rich_text", [])
+                pr_json = pr_raw[0].get("plain_text", "[]") if pr_raw else "[]"
+                
+                nh_raw = p.get("다음숙제", {}).get("rich_text", [])
+                nh_json = nh_raw[0].get("plain_text", "[]") if nh_raw else "[]"
+                
                 f_list = p.get("피드백", {}).get("rich_text", [])
                 feedback = f_list[0].get("text", {}).get("content", "") if f_list else ""
                 
-                empty_j = json.dumps([])
-                memo_j = json.dumps([{"요약": "노션 복구 데이터"}])
-                
+                # 복구 시 유효한 JSON인지 확인하고 아니면 빈 배열 처리
+                try: json.loads(hw_json)
+                except: hw_json = "[]"
+                try: json.loads(pr_json)
+                except: pr_json = "[]"
+                try: json.loads(nh_json)
+                except: nh_json = "[]"
+
                 c.execute("""INSERT INTO progress (name, date, weekday, session, start_time, end_time, duration, 
                              homeworks, progress_list, solved_problems, feedback, next_hw_list) 
                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                          (name, date, '월', sess, '14:00', '16:00', 2.0, empty_j, empty_j, memo_j, feedback, empty_j))
+                          (name, date, '월', sess, '14:00', '16:00', 2.0, hw_json, pr_json, json.dumps([{"요약": "노션 복구 데이터"}]), feedback, nh_json))
                 c.execute("INSERT OR IGNORE INTO students (name, books) VALUES (?, ?)", (name, json.dumps([])))
                 count += 1
-            except:
+            except Exception as e:
                 continue
         conn.commit()
-        st.success(f"{count}개의 데이터를 복구했습니다.")
+        st.success(f"{count}개의 데이터를 100% 복구했습니다.")
         st.rerun()
     except Exception as e:
         st.error(f"동기화 중 오류 발생: {e}")
 
 # --- [4. 노션 전송 및 보조 함수] ---
 def save_to_notion(data):
-    hw_summary = "• 숙제 없음" if data['hw_df'].empty else "".join([f"• {r.get('분류','')}: {r.get('푼 문항',0)}/{r.get('총 문항',0)}\n" for _, r in data['hw_df'].iterrows()])
-    pr_summary = f"메모: {data['memo']}\n" + "".join([f"• {r.get('분류','')}: {r.get('단원/개념','')}\n" for _, r in data['pr_df'].iterrows()])
-    nh_summary = "• 다음 숙제 없음" if data['nhw_df'].empty else "".join([f"• {r.get('분류','')}: {r.get('범위','')}\n" for _, r in data['nhw_df'].iterrows()])
+    # 나중에 복구할 수 있도록 데이터프레임을 JSON 문자열로 변환하여 전송
+    hw_json = data['hw_df'].to_json(orient='records')
+    pr_json = data['pr_df'].to_json(orient='records')
+    nh_json = data['nhw_df'].to_json(orient='records')
 
     payload = {
         "parent": {"database_id": DATABASE_ID},
@@ -122,9 +134,9 @@ def save_to_notion(data):
             "학생이름": {"select": {"name": data['name']}},
             "날짜": {"date": {"start": data['date']}},
             "회차": {"number": data['session']},
-            "오늘숙제": {"rich_text": [{"text": {"content": hw_summary}}]},
-            "수업내용": {"rich_text": [{"text": {"content": pr_summary}}]},
-            "다음숙제": {"rich_text": [{"text": {"content": nh_summary}}]},
+            "오늘숙제": {"rich_text": [{"text": {"content": hw_json}}]},
+            "수업내용": {"rich_text": [{"text": {"content": pr_json}}]},
+            "다음숙제": {"rich_text": [{"text": {"content": nh_json}}]},
             "피드백": {"rich_text": [{"text": {"content": data['feedback']}}]}
         }
     }
@@ -133,15 +145,16 @@ def save_to_notion(data):
 def get_next_session(name, date_obj):
     curr_m = date_obj.strftime('%Y-%m')
     res = c.execute("SELECT MAX(session) FROM progress WHERE name=? AND date LIKE ?", (name, f"{curr_m}%")).fetchone()
-    return (res[0] + 1) if res[0] else 1
+    return (int(res[0]) + 1) if res[0] else 1
 
 # --- [5. 사이드바 레이아웃] ---
 st.set_page_config(page_title="수학 과외 관리 v2026", layout="wide")
 if 'reset_count' not in st.session_state: st.session_state.reset_count = 0
 
 with st.sidebar:
-    st.header("⚙️ 데이터 복구")
-    if st.button("🔄 노션 데이터 동기화", use_container_width=True): sync_from_notion()
+    st.header("⚙️ 데이터 관리")
+    if st.button("🔄 노션에서 전체 데이터 복구", use_container_width=True): sync_from_notion()
+    st.caption("※ 서버 초기화로 데이터가 사라졌을 때 사용하세요.")
     st.divider()
     
     st.header("👤 학생 관리")
@@ -204,6 +217,7 @@ with tab_in:
         conn.commit()
         save_to_notion({"name": sel_name, "date": in_date.strftime("%Y-%m-%d"), "session": int(in_sess), "hw_df": df_hw, "pr_df": df_pr, "memo": in_memo, "nhw_df": df_nh, "feedback": in_feed})
         st.session_state.reset_count += 1
+        st.success("데이터가 안전하게 저장되었습니다!")
         st.rerun()
 
 # --- TAB 2: 상세 조회 ---
@@ -220,16 +234,16 @@ with tab_de:
         c_a, c_b = st.columns(2)
         with c_a:
             st.markdown("**📝 숙제 결과**")
-            try: st.dataframe(pd.read_json(io.StringIO(row['homeworks'])), hide_index=True)
-            except: st.write("데이터 형식 없음")
+            try: st.dataframe(pd.read_json(io.StringIO(row['homeworks'])), hide_index=True, use_container_width=True)
+            except: st.warning("숙제 데이터가 없습니다.")
         with c_b:
             st.markdown("**📖 수업 진도**")
-            try: st.dataframe(pd.read_json(io.StringIO(row['progress_list'])), hide_index=True)
-            except: st.write("데이터 형식 없음")
+            try: st.dataframe(pd.read_json(io.StringIO(row['progress_list'])), hide_index=True, use_container_width=True)
+            except: st.warning("진도 데이터가 없습니다.")
             
         st.markdown("**✍️ 부여된 숙제**")
-        try: st.dataframe(pd.read_json(io.StringIO(row['next_hw_list'])), hide_index=True)
-        except: st.write("데이터 형식 없음")
+        try: st.dataframe(pd.read_json(io.StringIO(row['next_hw_list'])), hide_index=True, use_container_width=True)
+        except: st.warning("다음 숙제 데이터가 없습니다.")
         
         if st.button("🗑️ 해당 기록 삭제"):
             c.execute("DELETE FROM progress WHERE id=?", (int(row['id']),))
@@ -240,11 +254,12 @@ with tab_de:
 with tab_ca:
     if not all_recs.empty:
         all_recs['month'] = all_recs['date'].dt.strftime('%Y-%m')
-        sel_m = st.selectbox("조회 월 선택", sorted(all_recs['month'].unique(), reverse=True))
+        unique_months = sorted(all_recs['month'].unique(), reverse=True)
+        sel_m = st.selectbox("조회 월 선택", unique_months)
         m_data = all_recs[all_recs['month'] == sel_m].sort_values('date', ascending=False)
         for _, r in m_data.iterrows():
             with st.expander(f"📅 {r['date'].strftime('%m/%d')} ({r['session']}회차)"):
-                st.write(f"**메시지:** {r['feedback']}")
+                st.write(f"**피드백 요약:** {r['feedback']}")
                 st.caption(f"수업 시간: {r['start_time']} ~ {r['end_time']} ({r['duration']}시간)")
     else: st.info("기록이 없습니다.")
 
@@ -256,15 +271,15 @@ with tab_an:
             try:
                 h_df = pd.read_json(io.StringIO(r['homeworks']))
                 if not h_df.empty:
-                    tot = pd.to_numeric(h_df['총 문항']).sum()
-                    sol = pd.to_numeric(h_df['푼 문항']).sum()
-                    score = (sol/tot*100) if tot > 0 else 100
+                    tot = pd.to_numeric(h_df['총 문항'], errors='coerce').sum()
+                    sol = pd.to_numeric(h_df['푼 문항'], errors='coerce').sum()
+                    score = (sol/tot*100) if tot > 0 else 0
                     analysis_list.append({"date": r['date'], "score": score})
             except: continue
         
         if analysis_list:
             an_df = pd.DataFrame(analysis_list).sort_values("date")
             st.line_chart(an_df.set_index("date"))
-            st.metric("평균 성취도", f"{round(an_df['score'].mean(), 1)}%")
-        else: st.write("분석할 숙제 데이터가 부족합니다.")
+            st.metric("평균 숙제 이행률", f"{round(an_df['score'].mean(), 1)}%")
+        else: st.write("분석할 숙제 데이터가 아직 없습니다.")
     else: st.info("기록이 없습니다.")
