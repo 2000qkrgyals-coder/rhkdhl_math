@@ -238,42 +238,85 @@ with tab_input:
 # --- [TAB 2: 상세 조회] ---
 with tab_search:
     if not all_recs.empty:
-        # ... (중략: 수정/삭제 버튼 로직) ...
+        # 최신순 정렬
+        sort_recs = all_recs.sort_values(['date', 'session'], ascending=False)
+        v_list = [f"{r['date'].strftime('%Y-%m-%d')} ({r['session']}회차)" for _, r in sort_recs.iterrows()]
+        sel_v = st.selectbox("조회할 날짜 선택", v_list, key="search_select_box")
+        
+        # 선택된 행 추출
+        row = sort_recs.iloc[v_list.index(sel_v)]
+        
+        # 수정/삭제 버튼
+        c_ed1, c_ed2, _ = st.columns([1, 1, 2])
+        if c_ed1.button("✏️ 수정하기", use_container_width=True):
+            st.session_state.edit_mode, st.session_state.edit_target_id, st.session_state.edit_data = True, row['id'], row
+            st.rerun()
+        with c_ed2:
+            with st.popover("🗑️ 삭제하기", use_container_width=True):
+                st.warning("정말 삭제하시겠습니까?")
+                if st.button("확인 후 삭제", type="primary"):
+                    c.execute("DELETE FROM progress WHERE id=?", (int(row['id']),))
+                    conn.commit()
+                    st.rerun()
 
         st.divider()
         cc1, cc2 = st.columns(2)
+        
+        # --- 오늘 숙제 결과 표시 ---
         with cc1:
-            st.markdown("**📝 오늘 숙제 결과**")
-            # JSON에서 데이터프레임으로 변환
-            try:
-                hw_d = pd.read_json(io.StringIO(row['homeworks']))
-                if not hw_d.empty:
-                    st.dataframe(hw_d, use_container_width=True, hide_index=True)
-                else:
-                    st.info("기록된 오늘 숙제가 없습니다.")
-            except:
-                st.error("숙제 데이터를 불러오는 중 오류가 발생했습니다.")
-                
-        with cc2:
-            st.markdown("**📖 수업 진도**")
-            try:
-                pr_d = pd.read_json(io.StringIO(row['progress_list']))
-                if not pr_d.empty:
-                    st.dataframe(pr_d, use_container_width=True, hide_index=True)
-                else:
-                    st.info("기록된 진도가 없습니다.")
-            except:
-                st.error("진도 데이터를 불러오는 중 오류가 발생했습니다.")
+            st.markdown("##### 📝 오늘 숙제 결과")
+            if row['homeworks'] and row['homeworks'] != '[]':
+                try:
+                    # 데이터가 문자열인 경우 io.StringIO 사용
+                    hw_d = pd.read_json(io.StringIO(row['homeworks']))
+                    if not hw_d.empty:
+                        st.dataframe(hw_d, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("기록된 숙제 데이터가 비어있습니다.")
+                except Exception as e:
+                    st.error(f"숙제 데이터를 읽는 중 오류가 발생했습니다.")
+                    with st.expander("데이터 원본 보기"):
+                        st.code(row['homeworks'])
+            else:
+                st.info("오늘 확인한 숙제가 없습니다.")
 
-        # 메모 부분
+        # --- 수업 진도 표시 ---
+        with cc2:
+            st.markdown("##### 📖 수업 진도")
+            if row['progress_list'] and row['progress_list'] != '[]':
+                try:
+                    pr_d = pd.read_json(io.StringIO(row['progress_list']))
+                    if not pr_d.empty:
+                        st.dataframe(pr_d, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("진도 기록이 비어있습니다.")
+                except Exception as e:
+                    st.error(f"진도 데이터를 읽는 중 오류가 발생했습니다.")
+                    with st.expander("데이터 원본 보기"):
+                        st.code(row['progress_list'])
+            else:
+                st.info("입력된 진도 내용이 없습니다.")
+
+        # --- 상세 메모 및 피드백 ---
+        st.divider()
         try:
-            solved_memo = json.loads(row['solved_problems'])[0]['요약']
-            if solved_memo:
-                st.info(f"**상세 피드백:** {solved_memo}")
+            # solved_problems는 [{"요약": "내용"}] 형식임
+            memo_data = json.loads(row['solved_problems'])
+            memo_text = memo_data[0].get('요약', '내용 없음') if memo_data else '내용 없음'
+            
+            st.markdown("##### 💡 수업 상세 피드백")
+            st.info(memo_text)
         except:
-            pass
+            st.write("상세 피드백 정보를 불러올 수 없습니다.")
+
+        st.markdown("##### ✉️ 학부모 전송 메시지")
+        if row['feedback']:
+            st.success(row['feedback'])
+        else:
+            st.write("작성된 메시지가 없습니다.")
+            
     else:
-        st.write("조회할 기록이 없습니다.")
+        st.info("조회할 수업 기록이 아직 없습니다. 첫 수업을 기록해 보세요!")
 
 # --- [TAB 3: 월간 일정 및 숙제 요약] ---
 with tab_calendar:
