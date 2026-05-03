@@ -62,16 +62,14 @@ conn, c = init_db()
 
 # --- [3. 강화된 노션 데이터 복구 로직] ---
 def parse_notion_text_to_json(text, mode="hw"):
-    """더 유연한 텍스트 파싱: 기호가 없거나 형식이 달라도 최대한 추출"""
-    if not text: return "[]"
+    if not text or "없음" in text: return "[]"
     lines = text.split("\n")
     results = []
     for line in lines:
-        line = line.strip().lstrip("•-*").strip() # 불필요한 기호 제거
+        line = line.strip().lstrip("•-*").strip()
         if not line: continue
         try:
             if mode == "hw":
-                # 숫자 추출 로직 강화 (예: "쎈 10/20", "쎈: 10개 중 5개" 등 대응)
                 nums = re.findall(r'\d+', line)
                 book = line.split(":")[0].strip() if ":" in line else line.split()[0]
                 results.append({
@@ -94,7 +92,6 @@ def sync_from_notion():
     has_more = True
     next_cursor = None
 
-    # 데이터가 100개 이상일 경우 끝까지 긁어오는 루프 (Pagination)
     with st.spinner("노션에서 전체 데이터를 불러오는 중..."):
         while has_more:
             payload = {"start_cursor": next_cursor} if next_cursor else {}
@@ -114,18 +111,12 @@ def sync_from_notion():
     for page in all_pages:
         p = page.get("properties", {})
         try:
-            # 학생 이름 추출
             n_data = p.get("학생이름", {}).get("select")
             name = n_data.get("name") if n_data else "알 수 없음"
-            
-            # 날짜 추출
             d_data = p.get("날짜", {}).get("date")
             date = d_data.get("start") if d_data else datetime.now().strftime("%Y-%m-%d")
-            
-            # 회차 추출
             sess = p.get("회차", {}).get("number", 1)
             
-            # 텍스트 추출 (여러 줄 대응)
             def get_text(prop_name):
                 texts = p.get(prop_name, {}).get("rich_text", [])
                 return "".join([t.get("plain_text", "") for t in texts])
@@ -135,7 +126,6 @@ def sync_from_notion():
             nh_raw = get_text("다음숙제")
             feed = get_text("피드백")
 
-            # 파싱 및 저장
             hw_j = parse_notion_text_to_json(hw_raw, "hw")
             pr_j = parse_notion_text_to_json(pr_raw, "pr")
             nh_j = parse_notion_text_to_json(nh_raw, "nhw")
@@ -149,14 +139,14 @@ def sync_from_notion():
         except: continue
     
     conn.commit()
-    st.success(f"총 {count}개의 기록을 노션에서 100% 복구 완료했습니다.")
+    st.success(f"총 {count}개의 기록을 복구 완료했습니다.")
     st.rerun()
 
 # --- [4. 노션 저장 및 보조 함수] ---
 def save_to_notion(data):
-    hw_text = "• 숙제 없음" if data['hw_df'].empty else "\n".join([f"• {r['분류']}: {r['푼 문항']}/{r['총 문항']}" for _, r in data['hw_df'].iterrows()])
-    pr_text = "• 내용 없음" if data['pr_df'].empty else "\n".join([f"• {r['분류']}: {r['단원/개념']}" for _, r in data['pr_df'].iterrows()])
-    nh_text = "• 다음 숙제 없음" if data['nhw_df'].empty else "\n".join([f"• {r['분류']}: {r['범위']}" for _, r in data['nhw_df'].iterrows()])
+    hw_text = "지정된 숙제 없음" if data['hw_df'].empty else "\n".join([f"• {r['분류']}: {r['푼 문항']}/{r['총 문항']}" for _, r in data['hw_df'].iterrows()])
+    pr_text = "진도 기록 없음" if data['pr_df'].empty else "\n".join([f"• {r['분류']}: {r['단원/개념']}" for _, r in data['pr_df'].iterrows()])
+    nh_text = "다음 숙제 없음" if data['nhw_df'].empty else "\n".join([f"• {r['분류']}: {r['범위']}" for _, r in data['nhw_df'].iterrows()])
 
     payload = {
         "parent": {"database_id": DATABASE_ID},
@@ -182,7 +172,7 @@ if 'reset_count' not in st.session_state: st.session_state.reset_count = 0
 
 with st.sidebar:
     st.header("⚙️ 시스템 관리")
-    if st.button("🔄 노션 데이터 전체 복구 (누락 해결)", use_container_width=True):
+    if st.button("🔄 노션 데이터 전체 복구", use_container_width=True):
         sync_from_notion()
     st.divider()
     
@@ -251,25 +241,27 @@ with tab_de:
         recs = all_recs.sort_values("date", ascending=False)
         sel_v = st.selectbox("조회할 회차 선택", [f"{r['date'].strftime('%Y-%m-%d')} ({r['session']}회차)" for _, r in recs.iterrows()])
         
-        # 선택된 행 찾기
         sel_date_str = sel_v.split()[0]
         sel_sess_num = int(re.search(r'\((\d+)', sel_v).group(1))
         row = recs[(recs['date'].dt.strftime('%Y-%m-%d') == sel_date_str) & (recs['session'] == sel_sess_num)].iloc[0]
 
-        st.success(f"**피드백 메시지:**\n\n{row['feedback']}")
+        st.success(f"**학부모 피드백:**\n\n{row['feedback']}")
         c_a, c_b = st.columns(2)
         with c_a:
             st.write("**📝 숙제 결과**")
-            try: st.dataframe(pd.read_json(io.StringIO(row['homeworks'])), hide_index=True, use_container_width=True)
-            except: st.write("데이터 없음")
+            try: 
+                h_data = pd.read_json(io.StringIO(row['homeworks']))
+                if h_data.empty: st.warning("📢 지정된 숙제 없음")
+                else: st.dataframe(h_data, hide_index=True, use_container_width=True)
+            except: st.warning("📢 지정된 숙제 없음")
         with c_b:
             st.write("**📖 수업 진도**")
             try: st.dataframe(pd.read_json(io.StringIO(row['progress_list'])), hide_index=True, use_container_width=True)
             except: st.write("데이터 없음")
         
-        if st.button("🗑️ 해당 기록 삭제"):
-            c.execute("DELETE FROM progress WHERE id=?", (int(row['id']),))
-            conn.commit(); st.rerun()
+        st.write("**🎯 내준 숙제**")
+        try: st.dataframe(pd.read_json(io.StringIO(row['next_hw_list'])), hide_index=True, use_container_width=True)
+        except: st.write("데이터 없음")
     else: st.info("기록이 없습니다.")
 
 # --- TAB 3: 월간 일정 ---
@@ -281,6 +273,15 @@ with tab_ca:
         for _, r in m_data.iterrows():
             with st.expander(f"📅 {r['date'].strftime('%m/%d')} ({r['session']}회차)"):
                 st.write(f"**피드백:** {r['feedback']}")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.caption("📖 수업 진도")
+                    try: st.dataframe(pd.read_json(io.StringIO(r['progress_list'])), hide_index=True)
+                    except: st.write("-")
+                with col2:
+                    st.caption("📝 내준 숙제")
+                    try: st.dataframe(pd.read_json(io.StringIO(r['next_hw_list'])), hide_index=True)
+                    except: st.write("-")
     else: st.info("기록이 없습니다.")
 
 # --- TAB 4: 성취도 분석 ---
@@ -290,16 +291,20 @@ with tab_an:
         for _, r in all_recs.iterrows():
             try:
                 h_df = pd.read_json(io.StringIO(r['homeworks']))
-                if not h_df.empty:
-                    t_tot = pd.to_numeric(h_df['총 문항']).sum()
-                    t_sol = pd.to_numeric(h_df['푼 문항']).sum()
-                    rate = (t_sol / t_tot * 100) if t_tot > 0 else 0
-                    an_data.append({"date": r['date'], "rate": rate})
-            except: continue
+                # 숙제가 없거나 문항수가 0이면 성취도 100으로 처리
+                if h_df.empty:
+                    rate = 100.0
+                else:
+                    t_tot = pd.to_numeric(h_df['총 문항'], errors='coerce').sum()
+                    t_sol = pd.to_numeric(h_df['푼 문항'], errors='coerce').sum()
+                    rate = (t_sol / t_tot * 100) if (not pd.isna(t_tot) and t_tot > 0) else 100.0
+                an_data.append({"date": r['date'], "rate": rate})
+            except: 
+                an_data.append({"date": r['date'], "rate": 100.0})
         
         if an_data:
             df_an = pd.DataFrame(an_data).sort_values("date")
             st.line_chart(df_an.set_index("date"))
-            st.metric("최근 평균 성취도", f"{round(df_an['rate'].mean(), 1)}%")
-        else: st.write("성취도를 분석할 숙제 기록이 없습니다.")
+            st.metric("평균 성취도", f"{round(df_an['rate'].mean(), 1)}%")
+        else: st.write("기록이 없습니다.")
     else: st.info("데이터가 없습니다.")
