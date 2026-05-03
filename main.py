@@ -47,6 +47,7 @@ def save_to_notion(data):
         "Notion-Version": "2022-06-28"
     }
     
+    # 데이터 요약 생성 시 비어있는 경우 처리
     if data['hw_df'].empty:
         hw_summary = "• 숙제 없음"
     else:
@@ -55,7 +56,7 @@ def save_to_notion(data):
     pr_summary = f"메모: {data['memo']}\n" + "".join([f"• {r.get('분류','')}: {r.get('단원/개념','')} ({r.get('특이사항','')})\n" for _, r in data['pr_df'].iterrows()])
     
     if data['nhw_df'].empty:
-        nhw_summary = "• 숙제 없음"
+        nhw_summary = "• 다음 숙제 없음"
     else:
         nhw_summary = "".join([f"• {r.get('분류','')}: {r.get('범위','')} ({r.get('세부지시','')})\n" for _, r in data['nhw_df'].iterrows()])
 
@@ -101,6 +102,7 @@ def get_next_session(name, date_obj):
 
 st.set_page_config(page_title="수학 과외 관리 시스템", layout="wide")
 
+# 세션 상태 초기화
 if 'edit_mode' not in st.session_state: st.session_state.edit_mode = False
 if 'edit_target_id' not in st.session_state: st.session_state.edit_target_id = None
 if 'reset_count' not in st.session_state: st.session_state.reset_count = 0
@@ -111,7 +113,7 @@ def trigger_reset():
     st.session_state.reset_count += 1
     st.session_state.edit_mode, st.session_state.edit_target_id, st.session_state.temp_hw_data, st.session_state.edit_data = False, None, None, None
 
-# --- [4. 사이드바] ---
+# --- [4. 사이드바: 학생 및 교재 삭제 기능] ---
 with st.sidebar:
     st.header("👤 학생 및 교재 관리")
     with st.expander("➕ 학생 신규 등록"):
@@ -158,7 +160,7 @@ if not all_recs.empty:
 
 # --- [5. 메인 화면] ---
 st.title(f"📖 {sel_name} 학생 관리")
-tab_input, tab_search, tab_calendar, tab_analysis = st.tabs(["📝 수업 기록", "🔍 상세 조회", "📅 월간 일정", "📊 성취도 분석"])
+tab_input, tab_search, tab_calendar, tab_analysis = st.tabs(["📝 수업 기록", "🔍 상세 내역", "📅 월간 일정", "📊 성취도 분석"])
 
 # --- [TAB 1: 수업 기록] ---
 with tab_input:
@@ -184,7 +186,7 @@ with tab_input:
         i_nhw = pd.DataFrame(columns=["분류", "범위", "세부지시"])
         i_st, i_et = time(14,0), time(16,0)
 
-    st.markdown("#### 1️⃣ 기본 수업 정보")
+    st.markdown("#### 1️⃣ 기본 정보")
     c1, c2, c3, c4 = st.columns(4)
     sel_date = c1.date_input("수업 날짜", i_date, key=f"d_{u_key}")
     if not st.session_state.edit_mode: auto_sess = get_next_session(sel_name, sel_date)
@@ -193,26 +195,25 @@ with tab_input:
     in_st, in_et = c3.time_input("시작", i_st, key=f"st_{u_key}"), c4.time_input("종료", i_et, key=f"et_{u_key}")
 
     st.divider()
-    st.markdown("#### 2️⃣ 오늘 숙제 달성도 확인")
-    no_hw_today = st.checkbox("오늘 확인해야 할 숙제 없음", key=f"no_hw_today_{u_key}")
+    st.markdown("#### 2️⃣ 오늘 숙제 달성도")
+    no_hw_today = st.checkbox("오늘 확인한 숙제 없음", key=f"no_hw_today_{u_key}")
     if not no_hw_today:
         if not st.session_state.edit_mode and not all_recs.empty:
-            if st.button("💡 지난번 내준 숙제 양식 가져오기"):
+            if st.button("💡 지난번 숙제 가져오기"):
                 raw_next = pd.read_json(io.StringIO(all_recs.sort_values(['date', 'session']).iloc[-1]['next_hw_list']))
                 st.session_state.temp_hw_data = pd.DataFrame({"분류": raw_next["분류"], "범위": raw_next["범위"], "총 문항":0, "푼 문항":0, "모름":0, "안함":0})
                 st.rerun()
         ed_hw = st.data_editor(i_hw, num_rows="dynamic", hide_index=True, use_container_width=True, key=f"hw_{u_key}", column_config={"분류": st.column_config.SelectboxColumn("교재", options=curr_books)})
     else:
         ed_hw = pd.DataFrame(columns=["분류", "범위", "총 문항", "푼 문항", "모름", "안함"])
-        st.info("확인할 숙제가 없습니다.")
 
     st.divider()
-    st.markdown("#### 3️⃣ 오늘 진도 및 수업 메모")
+    st.markdown("#### 3️⃣ 오늘 진도 및 메모")
     ed_pr = st.data_editor(i_pr, num_rows="dynamic", hide_index=True, use_container_width=True, key=f"pr_{u_key}", column_config={"분류": st.column_config.SelectboxColumn("교재", options=curr_books)})
-    in_memo = st.text_area("상세 피드백", value=i_memo, key=f"m_{u_key}")
+    in_memo = st.text_area("수업 상세 피드백", value=i_memo, key=f"m_{u_key}")
 
     st.divider()
-    st.markdown("#### 4️⃣ 다음 숙제 및 피드백")
+    st.markdown("#### 4️⃣ 다음 숙제 및 학부모 피드백")
     no_hw_next = st.checkbox("다음 숙제 없음", key=f"no_hw_next_{u_key}")
     if not no_hw_next:
         ed_nhw = st.data_editor(i_nhw, num_rows="dynamic", hide_index=True, use_container_width=True, key=f"nhw_{u_key}", column_config={"분류": st.column_config.SelectboxColumn("교재", options=curr_books)})
@@ -232,116 +233,72 @@ with tab_input:
             c.execute("INSERT INTO progress (name, date, weekday, session, start_time, end_time, duration, homeworks, progress_list, solved_problems, feedback, next_hw_list) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                       (sel_name, sel_date.strftime("%Y-%m-%d"), get_weekday(sel_date), int(in_sess), in_st.strftime("%H:%M"), in_et.strftime("%H:%M"), dur, hw_j, pr_j, memo_j, in_feed, nh_j))
         conn.commit()
-        st_code = save_to_notion({"name": sel_name, "date": sel_date.strftime("%Y-%m-%d"), "session": int(in_sess), "hw_df": ed_hw, "pr_df": ed_pr, "memo": in_memo, "nhw_df": ed_nhw, "feedback": in_feed})
+        save_to_notion({"name": sel_name, "date": sel_date.strftime("%Y-%m-%d"), "session": int(in_sess), "hw_df": ed_hw, "pr_df": ed_pr, "memo": in_memo, "nhw_df": ed_nhw, "feedback": in_feed})
         trigger_reset(); st.rerun()
 
-# --- [TAB 2: 상세 조회] ---
+# --- [TAB 2: 상세 내역 조회] ---
 with tab_search:
     if not all_recs.empty:
-        # 최신순 정렬
         sort_recs = all_recs.sort_values(['date', 'session'], ascending=False)
         v_list = [f"{r['date'].strftime('%Y-%m-%d')} ({r['session']}회차)" for _, r in sort_recs.iterrows()]
-        sel_v = st.selectbox("조회할 날짜 선택", v_list, key="search_select_box")
-        
-        # 선택된 행 추출
+        sel_v = st.selectbox("날짜 선택", v_list, key="search_box")
         row = sort_recs.iloc[v_list.index(sel_v)]
         
-        # 수정/삭제 버튼
-        c_ed1, c_ed2, _ = st.columns([1, 1, 2])
-        if c_ed1.button("✏️ 수정하기", use_container_width=True):
+        col_btn1, col_btn2, _ = st.columns([1, 1, 2])
+        if col_btn1.button("✏️ 수정", use_container_width=True):
             st.session_state.edit_mode, st.session_state.edit_target_id, st.session_state.edit_data = True, row['id'], row
             st.rerun()
-        with c_ed2:
-            with st.popover("🗑️ 삭제하기", use_container_width=True):
-                st.warning("정말 삭제하시겠습니까?")
-                if st.button("확인 후 삭제", type="primary"):
+        with col_btn2:
+            with st.popover("🗑️ 삭제", use_container_width=True):
+                if st.button("영구 삭제 확인"):
                     c.execute("DELETE FROM progress WHERE id=?", (int(row['id']),))
-                    conn.commit()
-                    st.rerun()
+                    conn.commit(); st.rerun()
 
         st.divider()
-        cc1, cc2 = st.columns(2)
+        sc1, sc2 = st.columns(2)
+        with sc1:
+            st.markdown("##### 📝 지난 숙제 결과")
+            if not row['homeworks'] or row['homeworks'] == '[]':
+                st.info("지난 숙제가 없었습니다.")
+            else:
+                try:
+                    hw_view = pd.read_json(io.StringIO(row['homeworks']))
+                    if hw_view.empty: st.info("지난 숙제가 없었습니다.")
+                    else: st.dataframe(hw_view, use_container_width=True, hide_index=True)
+                except: st.error("데이터 오류")
+        with sc2:
+            st.markdown("##### 📖 진도")
+            pr_view = pd.read_json(io.StringIO(row['progress_list']))
+            st.dataframe(pr_view, use_container_width=True, hide_index=True)
         
-        # --- 오늘 숙제 결과 표시 ---
-        with cc1:
-            st.markdown("##### 📝 오늘 숙제 결과")
-            if row['homeworks'] and row['homeworks'] != '[]':
-                try:
-                    # 데이터가 문자열인 경우 io.StringIO 사용
-                    hw_d = pd.read_json(io.StringIO(row['homeworks']))
-                    if not hw_d.empty:
-                        st.dataframe(hw_d, use_container_width=True, hide_index=True)
-                    else:
-                        st.info("기록된 숙제 데이터가 비어있습니다.")
-                except Exception as e:
-                    st.error(f"숙제 데이터를 읽는 중 오류가 발생했습니다.")
-                    with st.expander("데이터 원본 보기"):
-                        st.code(row['homeworks'])
-            else:
-                st.info("오늘 확인한 숙제가 없습니다.")
-
-        # --- 수업 진도 표시 ---
-        with cc2:
-            st.markdown("##### 📖 수업 진도")
-            if row['progress_list'] and row['progress_list'] != '[]':
-                try:
-                    pr_d = pd.read_json(io.StringIO(row['progress_list']))
-                    if not pr_d.empty:
-                        st.dataframe(pr_d, use_container_width=True, hide_index=True)
-                    else:
-                        st.info("진도 기록이 비어있습니다.")
-                except Exception as e:
-                    st.error(f"진도 데이터를 읽는 중 오류가 발생했습니다.")
-                    with st.expander("데이터 원본 보기"):
-                        st.code(row['progress_list'])
-            else:
-                st.info("입력된 진도 내용이 없습니다.")
-
-        # --- 상세 메모 및 피드백 ---
-        st.divider()
-        try:
-            # solved_problems는 [{"요약": "내용"}] 형식임
-            memo_data = json.loads(row['solved_problems'])
-            memo_text = memo_data[0].get('요약', '내용 없음') if memo_data else '내용 없음'
-            
-            st.markdown("##### 💡 수업 상세 피드백")
-            st.info(memo_text)
-        except:
-            st.write("상세 피드백 정보를 불러올 수 없습니다.")
-
-        st.markdown("##### ✉️ 학부모 전송 메시지")
-        if row['feedback']:
-            st.success(row['feedback'])
-        else:
-            st.write("작성된 메시지가 없습니다.")
-            
+        st.info(f"**상세 피드백:** {json.loads(row['solved_problems'])[0]['요약']}")
+        st.success(f"**학부모 메시지:** {row['feedback']}")
     else:
-        st.info("조회할 수업 기록이 아직 없습니다. 첫 수업을 기록해 보세요!")
+        st.write("기록이 없습니다.")
 
-# --- [TAB 3: 월간 일정 및 숙제 요약] ---
+# --- [TAB 3: 월간 일정] ---
 with tab_calendar:
     if not all_recs.empty:
         all_recs['month'] = all_recs['date'].dt.strftime('%Y-%m')
-        target_m = st.selectbox("조회할 달 선택", sorted(all_recs['month'].unique(), reverse=True), key="cal_month")
-        m_data = all_recs[all_recs['month'] == target_m].sort_values('date')
-        
-        st.subheader(f"📅 {target_m} 수업 및 숙제 요약")
+        sel_m = st.selectbox("달 선택", sorted(all_recs['month'].unique(), reverse=True))
+        m_data = all_recs[all_recs['month'] == sel_m].sort_values('date')
         
         for _, r in m_data.iterrows():
-            with st.expander(f"📍 {r['date'].strftime('%m/%d')} ({r['weekday']}) - {r['session']}회차"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown("**[수업 내용]**")
-                    pr_df = pd.read_json(io.StringIO(r['progress_list']))
-                    for _, p in pr_df.iterrows():
-                        st.write(f"- {p['분류']}: {p['단원/개념']}")
-                with col2:
-                    st.markdown("**[내준 숙제]**")
-                    nh_df = pd.read_json(io.StringIO(r['next_hw_list']))
-                    if nh_df.empty: st.write("숙제 없음")
-                    for _, n in nh_df.iterrows():
-                        st.write(f"- {n['분류']}: {n['범위']}")
-                st.caption(f"🕒 수업 시간: {r['start_time']} ~ {r['end_time']} ({r['duration']}h)")
+            with st.expander(f"📍 {r['date'].strftime('%m/%d')} - {r['session']}회차"):
+                c_c1, c_c2 = st.columns(2)
+                with c_c1:
+                    st.write("**[진도]**")
+                    pv = pd.read_json(io.StringIO(r['progress_list']))
+                    for _, p in pv.iterrows(): st.write(f"- {p['분류']}: {p['단원/개념']}")
+                with c_c2:
+                    st.write("**[다음 숙제]**")
+                    if not r['next_hw_list'] or r['next_hw_list'] == '[]':
+                        st.write("숙제 없음")
+                    else:
+                        nv = pd.read_json(io.StringIO(r['next_hw_list']))
+                        if nv.empty: st.write("숙제 없음")
+                        else:
+                            for _, n in nv.iterrows(): st.write(f"- {n['분류']}: {n['범위']}")
     else:
         st.write("기록이 없습니다.")
 
@@ -352,41 +309,30 @@ with tab_analysis:
         for _, r in all_recs.iterrows():
             try:
                 hw = pd.read_json(io.StringIO(r['homeworks']))
-                # [수정] 숙제가 아예 없는 경우 성취도를 100%로 설정
-                if hw.empty or pd.to_numeric(hw['총 문항']).sum() == 0:
+                if hw.empty or pd.to_numeric(hw['총 문항'], errors='coerce').sum() == 0:
                     score = 100.0
                 else:
                     tot = pd.to_numeric(hw['총 문항']).sum()
-                    sol = (pd.to_numeric(hw['푼 문항']).sum() + pd.to_numeric(hw['모름']).sum())
+                    sol = pd.to_numeric(hw['푼 문항']).sum() + pd.to_numeric(hw['모름']).sum()
                     score = round(sol/tot*100, 1)
-                
                 analysis_data.append({
-                    "날짜": r['date'], 
-                    "회차": f"{r['date'].strftime('%m/%d')} ({r['session']}회)", 
-                    "성취도": score,
-                    "주별": r['date'].to_period('W').start_time.strftime('%Y-%m-%d'),
-                    "월별": r['date'].strftime('%Y-%m')
+                    "날짜": r['date'], "회차": f"{r['date'].strftime('%m/%d')} ({r['session']}회)", 
+                    "성취도": score, "월별": r['date'].strftime('%Y-%m')
                 })
             except: continue
-            
+        
         if analysis_data:
             df_an = pd.DataFrame(analysis_data).sort_values("날짜")
+            avg_s = round(df_an['성취도'].mean(), 1)
+            st.metric("평균 성취도", f"{avg_s}%")
             
-            # 그래프 가시성 개선 (Area Chart 사용 및 메트릭 추가)
-            avg_score = round(df_an['성취도'].mean(), 1)
-            st.metric("평균 성취도", f"{avg_score}%", delta=f"{round(avg_score-80, 1)}% (기준 80%)")
-            
-            opt = st.radio("분석 단위", ["전체 흐름", "월별 상세"], horizontal=True)
-            
-            if opt == "전체 흐름":
+            mode = st.radio("보기", ["전체", "월별"], horizontal=True)
+            if mode == "전체":
                 st.area_chart(df_an.set_index('회차')['성취도'])
-                st.dataframe(df_an.drop(columns=['주별', '월별']).sort_values("날짜", ascending=False), use_container_width=True, hide_index=True)
+                st.dataframe(df_an, use_container_width=True, hide_index=True)
             else:
-                target_m = st.selectbox("월 선택", sorted(df_an['월별'].unique(), reverse=True), key="an_month")
-                filtered = df_an[df_an['월별'] == target_m]
-                st.bar_chart(filtered.set_index('회차')['성취도'])
-                st.dataframe(filtered.drop(columns=['주별', '월별']), use_container_width=True, hide_index=True)
-        else:
-            st.write("분석할 데이터가 부족합니다.")
+                m_target = st.selectbox("월 선택", sorted(df_an['월별'].unique(), reverse=True), key="an_m")
+                m_filtered = df_an[df_an['월별'] == m_target]
+                st.bar_chart(m_filtered.set_index('회차')['성취도'])
     else:
-        st.write("기록이 없습니다.")
+        st.write("분석할 데이터가 없습니다.")
