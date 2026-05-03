@@ -336,9 +336,8 @@ with tab_analysis:
                 st.bar_chart(filtered.set_index('회차')['성취도'])
                 st.dataframe(filtered, use_container_width=True, hide_index=True)
         else:
+            # 이 부분의 들여쓰기가 앞의 if analysis_data:와 수직으로 맞아야 합니다.
             st.write("분석할 수 있는 숙제 데이터가 없습니다.")
     else:
-        st.write("기록이 없습니다.")
-            st.write("분석할 수 있는 숙제 데이터가 없습니다.")
-    else:
+        # 이 부분은 if not all_recs.empty:와 수직으로 맞아야 합니다.
         st.write("기록이 없습니다.")
