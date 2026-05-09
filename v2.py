@@ -11,6 +11,7 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_data(worksheet_name):
     try:
+        # TTL을 짧게 설정하여 데이터 업데이트 반영 속도 향상
         return conn.read(worksheet=worksheet_name, ttl="1s")
     except Exception as e:
         st.error(f"시트 로드 오류: {e}")
@@ -23,24 +24,46 @@ def save_data(df, worksheet_name):
     except Exception as e:
         st.error(f"저장 실패: {e}")
 
-# --- [2. 세션 상태 초기화] ---
+# --- [2. 세션 상태 초기화 (AttributeError 방지)] ---
 init_keys = {
-    'p_rows': 1, 'h_rows': 1, 'check_rows': 1, 
-    'edit_id': None, 'no_hw': False
+    'p_rows': 1, 
+    'h_rows': 1, 
+    'check_rows': 1, 
+    'edit_id': None, 
+    'edit_session_num': 0,
+    'edit_date': datetime.now().strftime("%Y-%m-%d"),
+    'edit_start': "14:00",
+    'edit_end': "16:00",
+    'edit_feedback': "",
+    'no_hw': False
 }
 for key, default in init_keys.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
-# --- [3. 사이드바 - 학생 선택] ---
+# --- [3. 사이드바 - 학생 선택 및 등록] ---
 with st.sidebar:
-    st.title("📑 Tutor Pro v9.3")
+    st.title("📑 Tutor Pro v9.4")
+    
+    with st.expander("👤 신규 학생 등록"):
+        new_name = st.text_input("학생 이름 입력", key="new_student_name")
+        if st.button("등록하기") and new_name:
+            df_st = load_data("students")
+            new_id = int(df_st['id'].max() + 1) if not df_st.empty else 1
+            new_row = pd.DataFrame([{'id': new_id, 'name': new_name, 'target_date': '', 'books': json.dumps([], ensure_ascii=False)}])
+            df_st = pd.concat([df_st, new_row], ignore_index=True)
+            save_data(df_st, "students")
+            st.success(f"{new_name} 등록 완료!")
+            time.sleep(0.5)
+            st.rerun()
+
     df_st = load_data("students")
     
     if not df_st.empty:
         sel_name = st.selectbox("관리할 학생 선택", df_st['name'])
         s_data = df_st[df_st['name'] == sel_name].iloc[0]
         s_id = int(s_data['id'])
+        
         try:
             s_books = json.loads(s_data['books']) if (pd.notna(s_data['books']) and s_data['books'] != "") else []
         except:
@@ -57,10 +80,13 @@ with tab1:
     df_se = load_data("sessions")
     all_sessions = df_se[df_se['student_id'] == s_id].sort_values(by='session_num', ascending=False)
 
-    if st.session_state.edit_id:
-        st.info(f"🔄 **{st.session_state.edit_session_num}회차 기록 수정 모드**")
+    # 수정 모드 알림 (안전한 get 방식 사용)
+    if st.session_state.get('edit_id') is not None:
+        st.info(f"🔄 **{st.session_state.get('edit_session_num')}회차 기록 수정 모드**")
         if st.button("❌ 수정 취소 및 초기화"): 
             st.session_state.edit_id = None
+            st.session_state.p_rows = 1
+            st.session_state.h_rows = 1
             st.rerun()
     
     st.subheader(f"[{sel_name}] 수업 기록")
@@ -81,20 +107,20 @@ with tab1:
             acc_total += ct
             acc_done += cd
         
-        c_b1, c_b2 = st.columns(2)
-        if c_b1.button("➕ 채점 칸 추가"): st.session_state.check_rows += 1; st.rerun()
-        if c_b2.button("➖ 제거") and st.session_state.check_rows > 1: st.session_state.check_rows -= 1; st.rerun()
+        col_c1, col_c2 = st.columns(2)
+        if col_c1.button("➕ 채점 칸 추가"): st.session_state.check_rows += 1; st.rerun()
+        if col_c2.button("➖ 제거") and st.session_state.check_rows > 1: st.session_state.check_rows -= 1; st.rerun()
         final_rate = int((acc_done / acc_total * 100)) if acc_total > 0 else 100
     else:
         final_rate = 100
 
     st.divider()
 
-    # [오늘 수업 정보 입력 섹션]
+    # [수업 정보 입력 폼]
     with st.form("lesson_form"):
         st.write("### 📖 오늘 수업 정보")
         
-        # 수정 모드일 경우 세션에 저장된 값 사용, 아닐 경우 기본값
+        # 수정 데이터 복원용 변수 설정
         d_val = datetime.strptime(st.session_state.edit_date, "%Y-%m-%d") if st.session_state.edit_id else datetime.now()
         n_val = st.session_state.edit_session_num if st.session_state.edit_id else (all_sessions['session_num'].max() + 1 if not all_sessions.empty else 1)
         st_val = datetime.strptime(st.session_state.edit_start, "%H:%M").time() if st.session_state.edit_id else dt_time(14, 0)
@@ -112,98 +138,111 @@ with tab1:
         p_list = []
         for i in range(st.session_state.p_rows):
             cc1, cc2 = st.columns([1, 2])
-            # 수정 데이터 불러오기 로직
-            row_p_val = st.session_state.get(f"edit_p_val_{i}", "")
-            pb_val = row_p_val.split(":")[0].strip() if ":" in row_p_val else (s_books[0] if s_books else "미등록")
-            pr_val = row_p_val.split(":")[1].strip() if ":" in row_p_val else ""
+            edit_p = st.session_state.get(f"edit_p_val_{i}", "")
+            pb_init = edit_p.split(":")[0].strip() if ":" in edit_p else (s_books[0] if s_books else "미등록")
+            pr_init = edit_p.split(":")[1].strip() if ":" in edit_p else ""
             
-            pb = cc1.selectbox(f"진도 교재 {i+1}", s_books if s_books else ["미등록"], 
-                               index=s_books.index(pb_val) if pb_val in s_books else 0, key=f"pb_{i}")
-            pr = cc2.text_input(f"진도 범위 {i+1}", value=pr_val, key=f"pr_{i}")
+            pb = cc1.selectbox(f"진도 교재 {i+1}", s_books if s_books else ["미등록"], index=s_books.index(pb_init) if pb_init in s_books else 0, key=f"pb_{i}")
+            pr = cc2.text_input(f"진도 범위 {i+1}", value=pr_init, key=f"pr_{i}")
             if pb and pr: p_list.append(f"{pb}: {pr}")
 
         st.write("📝 다음 숙제")
         h_list = []
         for i in range(st.session_state.h_rows):
             cc1, cc2 = st.columns([1, 2])
-            # 수정 데이터 불러오기 로직
-            row_h_val = st.session_state.get(f"edit_h_val_{i}", "")
-            hb_val = row_h_val.split(":")[0].strip() if ":" in row_h_val else (s_books[0] if s_books else "미등록")
-            hr_val = row_h_val.split(":")[1].strip() if ":" in row_h_val else ""
+            edit_h = st.session_state.get(f"edit_h_val_{i}", "")
+            hb_init = edit_h.split(":")[0].strip() if ":" in edit_h else (s_books[0] if s_books else "미등록")
+            hr_init = edit_h.split(":")[1].strip() if ":" in edit_h else ""
 
-            hb = cc1.selectbox(f"숙제 교재 {i+1}", s_books if s_books else ["미등록"], 
-                               index=s_books.index(hb_val) if hb_val in s_books else 0, key=f"hb_{i}")
-            hr = cc2.text_input(f"숙제 범위 {i+1}", value=hr_val, key=f"hr_{i}")
+            hb = cc1.selectbox(f"숙제 교재 {i+1}", s_books if s_books else ["미등록"], index=s_books.index(hb_init) if hb_init in s_books else 0, key=f"hb_{i}")
+            hr = cc2.text_input(f"숙제 범위 {i+1}", value=hr_init, key=f"hr_{i}")
             if hb and hr: h_list.append(f"{hb}: {hr}")
 
-        fback_val = st.session_state.edit_feedback if st.session_state.edit_id else ""
-        fback = st.text_area("피드백", value=fback_val)
+        fback = st.text_area("피드백", value=st.session_state.edit_feedback if st.session_state.edit_id else "")
         
         btn_label = "📝 수정 완료 (덮어쓰기)" if st.session_state.edit_id else "💾 데이터 저장"
         submit = st.form_submit_button(btn_label)
 
-    c_p1, c_p2, c_h1, c_h2 = st.columns(4)
-    if c_p1.button("➕ 진도 추가"): st.session_state.p_rows += 1; st.rerun()
-    if c_p2.button("➖ 진도 제거"): st.session_state.p_rows = max(1, st.session_state.p_rows - 1); st.rerun()
-    if c_h1.button("➕ 숙제 추가"): st.session_state.h_rows += 1; st.rerun()
-    if c_h2.button("➖ 숙제 제거"): st.session_state.h_rows = max(1, st.session_state.h_rows - 1); st.rerun()
+    col_p1, col_p2, col_h1, col_h2 = st.columns(4)
+    if col_p1.button("➕ 진도 추가"): st.session_state.p_rows += 1; st.rerun()
+    if col_p2.button("➖ 진도 제거"): st.session_state.p_rows = max(1, st.session_state.p_rows - 1); st.rerun()
+    if col_h1.button("➕ 숙제 추가"): st.session_state.h_rows += 1; st.rerun()
+    if col_h2.button("➖ 숙제 제거"): st.session_state.h_rows = max(1, st.session_state.h_rows - 1); st.rerun()
 
     if submit:
         duration = (datetime.combine(date_in, end_t) - datetime.combine(date_in, start_t)).seconds // 60
-        p_s = " | ".join(p_list) if p_list else "없음"
-        h_s = " | ".join(h_list) if h_list else "없음"
+        p_str = " | ".join(p_list) if p_list else "없음"
+        h_str = " | ".join(h_list) if h_list else "없음"
         
         df_se = load_data("sessions")
-        # 데이터 생성
-        new_row = {
+        new_data = {
             'id': int(st.session_state.edit_id if st.session_state.edit_id else (df_se['id'].max() + 1 if not df_se.empty else 1)),
             'student_id': s_id, 'date': date_in.strftime("%Y-%m-%d"), 'session_num': sess_num,
             'start_time': start_t.strftime("%H:%M"), 'end_time': end_t.strftime("%H:%M"), 'duration': duration,
-            'progress': p_s, 'hw_result_rate': final_rate, 'next_hw': h_s, 'feedback': fback
+            'progress': p_str, 'hw_result_rate': final_rate, 'next_hw': h_str, 'feedback': fback
         }
         
         if st.session_state.edit_id:
-            df_se.loc[df_se['id'] == st.session_state.edit_id, list(new_row.keys())] = list(new_row.values())
-            st.session_state.edit_id = None # 수정 모드 해제
+            df_se.loc[df_se['id'] == st.session_state.edit_id, list(new_data.keys())] = list(new_data.values())
+            st.session_state.edit_id = None 
         else:
-            df_se = pd.concat([df_se, pd.DataFrame([new_row])], ignore_index=True)
+            df_se = pd.concat([df_se, pd.DataFrame([new_data])], ignore_index=True)
         
         save_data(df_se, "sessions")
-        st.success("데이터가 성공적으로 반영되었습니다!")
+        st.success("데이터가 성공적으로 저장되었습니다!")
         time.sleep(1)
         st.rerun()
 
-# --- [TAB 2, 3 동일] ---
+# --- TAB 2: 학습 분석 ---
 with tab2:
     st.subheader("📊 학습 분석")
     df_ana = load_data("sessions")
     df_ana = df_ana[df_ana['student_id'] == s_id].sort_values(by='date')
     if not df_ana.empty:
         st.plotly_chart(px.line(df_ana, x='session_num', y='hw_result_rate', markers=True, title="회차별 숙제 이행률(%)").update_layout(yaxis_range=[-5, 105]))
+        if 'duration' in df_ana.columns:
+            st.plotly_chart(px.bar(df_ana, x='session_num', y='duration', title="회차별 수업 시간(분)"))
 
+# --- TAB 3: 교재 관리 ---
 with tab3:
     st.subheader("📚 교재 관리")
-    col_nb1, col_nb2 = st.columns([3, 1])
-    nb = col_nb1.text_input("새 교재 이름")
-    if col_nb2.button("추가") and nb:
-        s_books.append(nb)
-        df_st.loc[df_st['id'] == s_id, 'books'] = json.dumps(s_books, ensure_ascii=False)
-        save_data(df_st, "students")
-        st.rerun()
+    col_b1, col_b2 = st.columns([3, 1])
+    nb = col_b1.text_input("새 교재 이름")
+    if col_b2.button("추가") and nb:
+        if nb not in s_books:
+            s_books.append(nb)
+            df_st.loc[df_st['id'] == s_id, 'books'] = json.dumps(s_books, ensure_ascii=False)
+            save_data(df_st, "students")
+            st.rerun()
+    st.write("---")
+    for b in s_books:
+        c1, c2 = st.columns([4, 1])
+        c1.write(f"📖 {b}")
+        if c2.button("삭제", key=f"del_{b}"):
+            s_books.remove(b)
+            df_st.loc[df_st['id'] == s_id, 'books'] = json.dumps(s_books, ensure_ascii=False)
+            save_data(df_st, "students")
+            st.rerun()
 
-# --- TAB 4: 전체 로그 (수정 기능 강화) ---
+# --- TAB 4: 전체 로그 (취소선 버그 및 복원 기능 완비) ---
 with tab4:
     st.subheader("📂 전체 수업 로그")
     df_log = load_data("sessions")
     df_log = df_log[df_log['student_id'] == s_id].sort_values(by='session_num', ascending=False)
     
     for _, row in df_log.iterrows():
-        d_time = f" ({row['start_time']}~{row['end_time']})"
-        with st.expander(f"📌 {int(row['session_num'])}회차 | {row['date']}{d_time} | {row['hw_result_rate']}%"):
-            st.text(f"진도: {row['progress']}\n숙제: {row['next_hw']}\n피드백: {row['feedback']}")
+        t_info = f" ({row['start_time']}~{row['end_time']}, {row['duration']}분)"
+        with st.expander(f"📌 {int(row['session_num'])}회차 | {row['date']}{t_info} | {row['hw_result_rate']}%"):
+            # 취소선 방지를 위해 st.text() 사용
+            st.write("**📖 진도:**")
+            st.text(row['progress'])
+            st.write("**📝 숙제:**")
+            st.text(row['next_hw'])
+            st.write("**💬 피드백:**")
+            st.text(row['feedback'])
             
-            if st.button("📝 이 데이터 수정하기", key=f"ed_btn_{row['id']}"):
-                # 1. 기본 정보 세션에 저장
+            if st.button("📝 수정하기", key=f"ed_btn_{row['id']}"):
+                # 수정 데이터 세션 주입
                 st.session_state.edit_id = row['id']
                 st.session_state.edit_date = row['date']
                 st.session_state.edit_session_num = int(row['session_num'])
@@ -211,17 +250,15 @@ with tab4:
                 st.session_state.edit_end = row['end_time']
                 st.session_state.edit_feedback = row['feedback']
                 
-                # 2. 진도/숙제 파싱 및 칸 개수 설정
-                p_items = row['progress'].split(" | ")
-                h_items = row['next_hw'].split(" | ")
+                # 진도/숙제 파싱 및 칸 개수 동기화
+                p_parts = row['progress'].split(" | ")
+                h_parts = row['next_hw'].split(" | ")
+                st.session_state.p_rows = len(p_parts)
+                st.session_state.h_rows = len(h_parts)
                 
-                st.session_state.p_rows = len(p_items)
-                st.session_state.h_rows = len(h_items)
+                for i, v in enumerate(p_parts): st.session_state[f"edit_p_val_{i}"] = v
+                for i, v in enumerate(h_parts): st.session_state[f"edit_h_val_{i}"] = v
                 
-                # 3. 각 칸의 세부 내용 임시 저장
-                for i, val in enumerate(p_items): st.session_state[f"edit_p_val_{i}"] = val
-                for i, val in enumerate(h_items): st.session_state[f"edit_h_val_{i}"] = val
-                
-                st.success("데이터를 불러왔습니다. '수업 기록' 탭으로 이동하세요!")
-                time.sleep(1)
+                st.success("데이터를 불러왔습니다. 첫 번째 탭으로 이동하세요!")
+                time.sleep(0.5)
                 st.rerun()
