@@ -28,7 +28,7 @@ def get_korean_weekday(date_str):
 
 # --- [2. 사이드바 관리] ---
 with st.sidebar:
-    st.title("🚀 Tutor Management v7")
+    st.title("🚀 Tutor Management")
     
     students_df = pd.read_sql_query("SELECT * FROM students", conn)
     if not students_df.empty:
