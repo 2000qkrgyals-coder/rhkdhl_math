@@ -240,41 +240,4 @@ with tab3:
             save_data(df_st, "students")
             st.rerun()
 
-# --- TAB 4: 전체 로그 (취소선 버그 및 복원 기능 완비) ---
-with tab4:
-    st.subheader("📂 전체 수업 로그")
-    df_log = load_data("sessions")
-    df_log = df_log[df_log['student_id'] == s_id].sort_values(by='session_num', ascending=False)
-    
-    for _, row in df_log.iterrows():
-        t_info = f" ({row['start_time']}~{row['end_time']}, {row['duration']}분)"
-        with st.expander(f"📌 {int(row['session_num'])}회차 | {row['date']}{t_info} | {row['hw_result_rate']}%"):
-            # 취소선 방지를 위해 st.text() 사용
-            st.write("**📖 진도:**")
-            st.text(row['progress'])
-            st.write("**📝 숙제:**")
-            st.text(row['next_hw'])
-            st.write("**💬 피드백:**")
-            st.text(row['feedback'])
-            
-            if st.button("📝 수정하기", key=f"ed_btn_{row['id']}"):
-                # 수정 데이터 세션 주입
-                st.session_state.edit_id = row['id']
-                st.session_state.edit_date = row['date']
-                st.session_state.edit_session_num = int(row['session_num'])
-                st.session_state.edit_start = row['start_time']
-                st.session_state.edit_end = row['end_time']
-                st.session_state.edit_feedback = row['feedback']
-                
-                # 진도/숙제 파싱 및 칸 개수 동기화
-                p_parts = row['progress'].split(" | ")
-                h_parts = row['next_hw'].split(" | ")
-                st.session_state.p_rows = len(p_parts)
-                st.session_state.h_rows = len(h_parts)
-                
-                for i, v in enumerate(p_parts): st.session_state[f"edit_p_val_{i}"] = v
-                for i, v in enumerate(h_parts): st.session_state[f"edit_h_val_{i}"] = v
-                
-                st.success("데이터를 불러왔습니다. 첫 번째 탭으로 이동하세요!")
-                time.sleep(0.5)
-                st.rerun()
+
