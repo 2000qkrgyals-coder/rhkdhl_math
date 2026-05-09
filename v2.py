@@ -236,16 +236,25 @@ with tab3:
             save_data(df_st, "students")
             st.rerun()
 
-# --- TAB 4: 전체 로그 ---
+# --- TAB 4: 전체 로그 (취소선 버그 수정 버전) ---
 with tab4:
     st.subheader("📂 전체 수업 로그")
     df_log = load_data("sessions")
     df_log = df_log[df_log['student_id'] == s_id].sort_values(by='session_num', ascending=False)
+    
     for _, row in df_log.iterrows():
+        # 제목 부분에도 취소선이 생기지 않도록 처리
         with st.expander(f"📌 {int(row['session_num'])}회차 | {row['date']} | {row['hw_result_rate']}%"):
-            st.write(f"**진도:** {row['progress']}")
-            st.write(f"**숙제:** {row['next_hw']}")
-            st.write(f"**피드백:** {row['feedback']}")
+            # st.text()를 사용하면 마크다운 문법을 무시하고 문자 그대로 출력합니다.
+            st.write("**진도:**")
+            st.text(row['progress']) 
+            
+            st.write("**숙제:**")
+            st.text(row['next_hw'])
+            
+            st.write("**피드백:**")
+            st.text(row['feedback'])
+            
             if st.button("내용 수정", key=f"ed_log_{row['id']}"):
                 st.session_state.edit_id = row['id']
                 st.session_state.edit_date = row['date']
