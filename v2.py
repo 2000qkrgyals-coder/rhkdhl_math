@@ -6,15 +6,17 @@ import plotly.express as px
 import json
 
 # --- [1. 구글 시트 연결 설정] ---
-# Streamlit Cloud의 Secrets에 등록된 URL을 통해 연결합니다.
+# --- [1. 구글 시트 연결 설정 수정] ---
+# 이제 Secrets의 [connections.gsheets] 설정을 자동으로 읽어옵니다.
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_data(worksheet_name):
-    return conn.read(worksheet=worksheet_name, ttl="0s") # 실시간 반영을 위해 캐시(ttl)를 0으로 설정
+    # 서비스 계정 사용 시 worksheet 이름을 명시적으로 지정
+    return conn.read(worksheet=worksheet_name, ttl=0)
 
 def save_data(df, worksheet_name):
+    # 서비스 계정 인증이 완료되었으므로 이제 update가 정상 작동합니다.
     conn.update(worksheet=worksheet_name, data=df)
-    st.cache_data.clear()
 
 # 초기 데이터 구조 생성 (시트가 비어있을 경우 대비)
 def init_sheets():
