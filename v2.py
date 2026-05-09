@@ -31,7 +31,6 @@ with st.sidebar:
         mode = st.radio("작업 선택", ["등록", "수정/삭제"])
         if mode == "등록":
             new_name = st.text_input("학생 이름")
-            t_date = st.date_input("시험 날짜", datetime.now())
             if st.button("신규 학생 등록"):
                 c.execute("INSERT INTO students (name, target_date, books) VALUES (?, ?, ?)", 
                           (new_name, t_date.strftime("%Y-%m-%d"), json.dumps([])))
@@ -69,9 +68,6 @@ with st.sidebar:
         s_books = json.loads(s_info['books'])
         
         target = datetime.strptime(s_info['target_date'], "%Y-%m-%d")
-        d_day = (target - datetime.now()).days
-        st.metric("📅 시험 D-Day", f"D-{d_day}" if d_day >= 0 else f"D+{abs(d_day)}")
-    else:
         st.warning("먼저 학생을 등록해주세요.")
         st.stop()
 
