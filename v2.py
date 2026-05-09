@@ -2,7 +2,7 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime, time as dt_time
-import plotly.express as px  # <--- 에러 원인 해결: Plotly 추가
+import plotly.express as px
 import json
 import time
 
@@ -24,7 +24,20 @@ def save_data(df, worksheet_name):
     except Exception as e:
         st.error(f"저장 실패: {e}")
 
-# --- [2. 세션 상태 초기화] ---
+# --- [2. 세션 상태 초기화 및 초기화 함수] ---
+def reset_session_inputs():
+    """입력 필드 초기화 함수"""
+    st.session_state.edit_id = None
+    st.session_state.p_rows = 1
+    st.session_state.h_rows = 1
+    st.session_state.check_rows = 1
+    st.session_state.edit_feedback = ""
+    st.session_state.no_hw = False
+    # 동적으로 생성된 진도/숙제/채점값 삭제
+    keys_to_del = [k for k in st.session_state.keys() if any(x in k for x in ['edit_p_val_', 'edit_h_val_', 'edit_c_val_', 'pb_', 'pr_', 'hb_', 'hr_', 'cb_', 'cr_', 'ct_', 'cd_'])]
+    for k in keys_to_del:
+        del st.session_state[k]
+
 init_keys = {
     'p_rows': 1, 'h_rows': 1, 'check_rows': 1, 
     'edit_id': None, 'edit_session_num': 0,
@@ -38,17 +51,9 @@ for key, default in init_keys.items():
 
 # --- [3. 사이드바 - 학생 관리] ---
 with st.sidebar:
-    st.title("📑 Tutor Pro v9.8")
+    st.title("📑 Tutor Pro v9.9")
     df_st = load_data("students")
     
-    with st.expander("👤 신규 학생 등록"):
-        new_name = st.text_input("학생 이름", key="reg_name")
-        if st.button("등록") and new_name:
-            new_id = int(df_st['id'].max() + 1) if not df_st.empty else 1
-            new_row = pd.DataFrame([{'id': new_id, 'name': new_name, 'target_date': '', 'books': json.dumps([], ensure_ascii=False)}])
-            save_data(pd.concat([df_st, new_row], ignore_index=True), "students")
-            st.success("등록 완료!"); time.sleep(0.5); st.rerun()
-
     if not df_st.empty:
         sel_name = st.selectbox("학생 선택", df_st['name'])
         s_data = df_st[df_st['name'] == sel_name].iloc[0]
@@ -70,14 +75,16 @@ with tab1:
 
     all_sessions = df_se[df_se['student_id'] == s_id].sort_values(by='session_num', ascending=False) if not df_se.empty else pd.DataFrame()
 
+    # 상단 상태 알림 및 초기화 버튼
+    col_status, col_reset = st.columns([4, 1])
     if st.session_state.get('edit_id') is not None:
-        st.info(f"🔄 **{st.session_state.get('edit_session_num')}회차 수정 모드**")
-        if st.button("❌ 수정 취소"): 
-            st.session_state.edit_id = None
-            st.rerun()
+        col_status.info(f"🔄 **{st.session_state.get('edit_session_num')}회차 수정 모드**")
+    if col_reset.button("🔄 내용 초기화"):
+        reset_session_inputs()
+        st.rerun()
 
     st.write("### ✍️ 지난 숙제 채점")
-    no_hw_check = st.checkbox("✅ 숙제 없음", value=st.session_state.no_hw)
+    no_hw_check = st.checkbox("✅ 숙제 없음 (채점 생략)", value=st.session_state.no_hw)
     st.session_state.no_hw = no_hw_check
 
     check_list, acc_total, acc_done = [], 0, 0
@@ -85,7 +92,6 @@ with tab1:
         for i in range(st.session_state.check_rows):
             c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
             edit_c = st.session_state.get(f"edit_c_val_{i}", "")
-            # 상세 데이터 파싱 복원 로직
             cb_i = edit_c.split(":")[0].strip() if ":" in edit_c else (s_books[0] if s_books else "미등록")
             cr_i = edit_c.split(":")[1].split("(")[0].strip() if "(" in edit_c else ""
             ct_i = int(edit_c.split("(")[1].split("/")[1].replace(")", "")) if "/" in edit_c else 0
@@ -97,11 +103,15 @@ with tab1:
             cd = c4.number_input(f"푼 문항", min_value=0, value=cd_i, key=f"cd_{i}")
             if cb and cr: check_list.append(f"{cb}: {cr} ({cd}/{ct})")
             acc_total += ct; acc_done += cd
+        
+        # [실시간 자동 계산 결과 표시]
         final_rate = int((acc_done / acc_total * 100)) if acc_total > 0 else 100
+        st.write(f"📊 **실시간 이행률 합계: {final_rate}%** ({acc_done}/{acc_total})")
     else: final_rate = 100
 
     st.divider()
 
+    # 시간/날짜 복원 안전장치
     try:
         e_s, e_e = str(st.session_state.edit_start), str(st.session_state.edit_end)
         st_val = datetime.strptime(e_s[:5], "%H:%M").time() if st.session_state.edit_id else dt_time(14, 0)
@@ -119,27 +129,29 @@ with tab1:
         c_t1, c_t2 = st.columns(2)
         start_t = c_t1.time_input("시작", st_val); end_t = c_t2.time_input("종료", et_val)
 
+        st.write("📖 오늘 나간 진도")
         p_list = []
         for i in range(st.session_state.p_rows):
             cc1, cc2 = st.columns([1, 2])
             edit_p = st.session_state.get(f"edit_p_val_{i}", "")
             pb_i = edit_p.split(":")[0].strip() if ":" in edit_p else (s_books[0] if s_books else "미등록")
             pr_i = edit_p.split(":")[1].strip() if ":" in edit_p else ""
-            pb = cc1.selectbox(f"진도 교재 {i+1}", s_books if s_books else ["미등록"], index=s_books.index(pb_i) if pb_i in s_books else 0, key=f"pb_{i}")
-            pr = cc2.text_input(f"진도 범위 {i+1}", value=pr_i, key=f"pr_{i}")
+            pb = cc1.selectbox(f"진도 {i+1}", s_books if s_books else ["미등록"], index=s_books.index(pb_i) if pb_i in s_books else 0, key=f"pb_{i}")
+            pr = cc2.text_input(f"범위 {i+1}", value=pr_i, key=f"pr_{i}")
             if pb and pr: p_list.append(f"{pb}: {pr}")
 
+        st.write("📝 다음 숙제")
         h_list = []
         for i in range(st.session_state.h_rows):
             cc1, cc2 = st.columns([1, 2])
             edit_h = st.session_state.get(f"edit_h_val_{i}", "")
             hb_i = edit_h.split(":")[0].strip() if ":" in edit_h else (s_books[0] if s_books else "미등록")
             hr_i = edit_h.split(":")[1].strip() if ":" in edit_h else ""
-            hb = cc1.selectbox(f"숙제 교재 {i+1}", s_books if s_books else ["미등록"], index=s_books.index(hb_i) if hb_i in s_books else 0, key=f"hb_{i}")
+            hb = cc1.selectbox(f"숙제 {i+1}", s_books if s_books else ["미등록"], index=s_books.index(hb_i) if hb_i in s_books else 0, key=f"hb_{i}")
             hr = cc2.text_input(f"숙제 범위 {i+1}", value=hr_i, key=f"hr_{i}")
             if hb and hr: h_list.append(f"{hb}: {hr}")
 
-        fback = st.text_area("피드백", value=st.session_state.edit_feedback if st.session_state.edit_id else "")
+        fback = st.text_area("수업 피드백", value=st.session_state.edit_feedback if st.session_state.edit_id else "")
         submit = st.form_submit_button("💾 데이터 저장")
 
     if submit:
@@ -154,8 +166,9 @@ with tab1:
         if st.session_state.edit_id:
             df_se = df_se[df_se['id'] != st.session_state.edit_id]
         df_se = pd.concat([df_se, pd.DataFrame([new_row])], ignore_index=True)
-        st.session_state.edit_id = None
-        save_data(df_se, "sessions"); st.success("저장 완료!"); time.sleep(1); st.rerun()
+        save_data(df_se, "sessions")
+        reset_session_inputs() # 저장 후 초기화
+        st.success("데이터가 성공적으로 저장되었습니다!"); time.sleep(1); st.rerun()
 
     c1, c2, c3, c4 = st.columns(4)
     if c1.button("➕ 채점/진도+"): st.session_state.check_rows += 1; st.session_state.p_rows += 1; st.rerun()
@@ -165,39 +178,14 @@ with tab1:
     if c3.button("➕ 숙제+"): st.session_state.h_rows += 1; st.rerun()
     if c4.button("➖ 숙제-"): st.session_state.h_rows = max(1, st.session_state.h_rows-1); st.rerun()
 
-# --- TAB 2: 학습 분석 ---
-with tab2:
-    st.subheader("📊 학습 데이터 분석")
-    df_ana = df_se[df_se['student_id'] == s_id].sort_values(by='session_num')
-    if not df_ana.empty:
-        st.plotly_chart(px.line(df_ana, x='session_num', y='hw_result_rate', markers=True, title="회차별 숙제 이행률(%)").update_layout(yaxis_range=[-5, 105]))
-        st.plotly_chart(px.bar(df_ana, x='session_num', y='duration', title="회차별 수업 시간(분)"))
-    else: st.info("기록된 수업 데이터가 없습니다.")
-
-# --- TAB 3: 교재 관리 ---
-with tab3:
-    st.subheader("📚 교재 관리")
-    col_b1, col_b2 = st.columns([3, 1])
-    nb = col_b1.text_input("새 교재 이름")
-    if col_b2.button("추가") and nb:
-        if nb not in s_books:
-            s_books.append(nb)
-            df_st.loc[df_st['id'] == s_id, 'books'] = json.dumps(s_books, ensure_ascii=False)
-            save_data(df_st, "students"); st.rerun()
-    for b in s_books:
-        c1, c2 = st.columns([4, 1])
-        c1.write(f"📖 {b}")
-        if c2.button("삭제", key=f"del_{b}"):
-            s_books.remove(b)
-            df_st.loc[df_st['id'] == s_id, 'books'] = json.dumps(s_books, ensure_ascii=False)
-            save_data(df_st, "students"); st.rerun()
-
-# --- TAB 4: 전체 로그 ---
+# --- TAB 4: 전체 로그 (수업 시간 표시) ---
 with tab4:
     st.subheader("📂 수업 로그 히스토리")
     if not all_sessions.empty:
         for _, row in all_sessions.iterrows():
-            with st.expander(f"📌 {int(row['session_num'])}회차 | {row['date']} | {row['hw_result_rate']}%"):
+            # [요청사항] 수업 시간(분)을 제목에 표시
+            t_info = f" ({row['start_time']}~{row['end_time']}, {int(row['duration'])}분)"
+            with st.expander(f"📌 {int(row['session_num'])}회차 | {row['date']}{t_info} | {row['hw_result_rate']}%"):
                 st.write("**✅ 상세 채점:**"); st.text(row.get('hw_detail', '없음'))
                 st.write("**📖 진도:**"); st.text(row['progress'])
                 st.write("**📝 숙제:**"); st.text(row['next_hw'])
