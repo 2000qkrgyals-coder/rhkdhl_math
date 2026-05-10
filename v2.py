@@ -190,20 +190,19 @@ with tab3:
             save_data(df_st, "students")
             st.rerun()
 
-# --- TAB 4: 전체 로그 ---
+# --- TAB 4: 로그 (취소선 방지 코드 적용) ---
 with tab4:
-    st.subheader("📂 수업 히스토리")
+    st.subheader("📂 수업 로그")
     if not all_sessions.empty:
         for _, row in all_sessions.iterrows():
-            title = f"📌 {int(row['session_num'])}회차 | {row['date']} ({row['start_time']}~{row['end_time']}, {int(row['duration'])}분) | {row['hw_result_rate']}%"
+            # 취소선 방지: 텍스트 출력 시 마크다운 형식이 아닌 일반 텍스트박스(code block 등) 사용 권장
+            title = f"📌 {int(row['session_num'])}회차 | {row['date']} ({int(row['duration'])}분) | {int(row['hw_result_rate'])}%"
             with st.expander(title):
-                st.write(f"**✅ 숙제 채점:** {row.get('hw_detail', '없음')}")
-                st.write(f"**📖 수업 진도:** {row['progress']}")
-                st.write(f"**📝 다음 숙제:** {row['next_hw']}")
-                st.info(f"💬 **피드백:** {row['feedback']}")
-                
-                if st.button("📝 수정하기", key=f"edit_btn_{row['id']}"):
-                    # 수정 시 데이터 세션에 저장 (탭1에서 사용)
-                    st.session_state.edit_id = row['id']
-                    st.session_state.edit_session_num = row['session_num']
-                    st.warning("탭 1로 이동하여 내용을 수정한 후 저장을 눌러주세요."); time.sleep(1)
+                # st.text()를 사용하여 특수문자가 마크다운으로 해석되지 않게 방지
+                st.write("**✅ 상세 채점**")
+                st.text(row.get('hw_detail', '없음'))
+                st.write("**📖 수업 진도**")
+                st.text(row['progress'])
+                st.write("**📝 다음 숙제**")
+                st.text(row['next_hw'])
+                st.info(f"💬 피드백: {row['feedback']}")
