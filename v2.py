@@ -44,7 +44,7 @@ def full_reset():
 
 # --- [3. 사이드바] ---
 with st.sidebar:
-    st.title("📑 Tutor Pro v10.4")
+    st.title("📑 Tutor Pro v10.5")
     df_st = load_data("students")
     if not df_st.empty:
         sel_name = st.selectbox("학생 선택", df_st['name'], key="main_student_selector")
@@ -57,7 +57,7 @@ with st.sidebar:
 
 tab1, tab2, tab3, tab4 = st.tabs(["📝 수업 기록/수정", "📊 학습 분석", "📚 교재 관리", "📂 전체 로그"])
 
-# --- TAB 1: 기록 및 수정 (숙제 불러오기 개선) ---
+# --- TAB 1: 기록 및 수정 ---
 with tab1:
     df_se = load_data("sessions")
     all_sessions = df_se[df_se['student_id'] == s_id].sort_values(by='session_num', ascending=False) if not df_se.empty else pd.DataFrame()
@@ -72,7 +72,7 @@ with tab1:
     
     if not all_sessions.empty:
         hw_options = {f"[{int(row['session_num'])}회차] {row['date']} : {row['next_hw']}": row['next_hw'] for _, row in all_sessions.iterrows()}
-        selected_label = st.selectbox("📥 이전 숙제 불러오기", ["선택 안 함"] + list(hw_options.keys()))
+        selected_label = st.selectbox("📥 이전 숙제 불러오기 (날짜/회차)", ["선택 안 함"] + list(hw_options.keys()))
         
         if selected_label != "선택 안 함" and st.button("적용하기"):
             actual_hw = hw_options[selected_label]
@@ -160,44 +160,46 @@ with tab1:
     if col_h1.button("➕ 숙제칸+"): st.session_state.h_rows += 1; st.rerun()
     if col_h2.button("➖ 숙제칸-"): st.session_state.h_rows = max(1, st.session_state.h_rows-1); st.rerun()
 
-# --- TAB 2: 학습 분석 (월별 오류 해결 및 X축 가시성 강화) ---
+# --- TAB 2: 학습 분석 (개별 데이터 보존 통계) ---
 with tab2:
-    st.subheader("📊 학습 성장 분석")
+    st.subheader("📊 학습 데이터 통계")
     df_ana = df_se[df_se['student_id'] == s_id].copy()
     if not df_ana.empty:
-        # 데이터 전처리: 날짜 및 숫자형 변환
         df_ana['date'] = pd.to_datetime(df_ana['date'])
         df_ana['hw_result_rate'] = pd.to_numeric(df_ana['hw_result_rate'], errors='coerce')
         df_ana['duration'] = pd.to_numeric(df_ana['duration'], errors='coerce')
         
-        view_opt = st.radio("보기 설정", ["회차별(기본)", "주별 평균", "월별 평균"], horizontal=True)
+        view_opt = st.radio("통계 기준", ["회차별", "주별 통계", "월별 통계"], horizontal=True)
         
-        if view_opt == "주별 평균":
-            # 주별 집계: 데이터가 있는 날짜만 남김
-            df_plot = df_ana.resample('W', on='date').mean(numeric_only=True).dropna(subset=['hw_result_rate']).reset_index()
-            df_plot['x_label'] = df_plot['date'].dt.strftime('%m/%d 주')
-        elif view_opt == "월별 평균":
-            # 월별 집계: 'ME'(Month End) 기준
-            df_plot = df_ana.resample('ME', on='date').mean(numeric_only=True).dropna(subset=['hw_result_rate']).reset_index()
-            df_plot['x_label'] = df_plot['date'].dt.strftime('%Y-%m')
+        df_plot = df_ana.sort_values('date')
+        
+        if view_opt == "주별 통계":
+            # X축 라벨을 해당 날짜가 속한 주차의 월/일로 변환
+            df_plot['x_axis'] = df_plot['date'].dt.to_period('W').apply(lambda r: r.start_time.strftime('%m/%d 주'))
+        elif view_opt == "월별 통계":
+            # X축 라벨을 해당 날짜가 속한 월로 변환
+            df_plot['x_axis'] = df_plot['date'].dt.strftime('%Y-%m')
         else:
-            df_plot = df_ana.sort_values('session_num')
-            df_plot['x_label'] = df_plot['session_num'].astype(int).astype(str) + "회차"
+            # 회차별 (기존 방식)
+            df_plot['x_axis'] = df_plot['session_num'].astype(int).astype(str) + "회차"
 
-        if not df_plot.empty:
-            # 이행률 선 그래프
-            fig_rate = px.line(df_plot, x='x_label', y='hw_result_rate', markers=True, 
-                              title="숙제 이행률 추이(%)", labels={'x_label': '시점', 'hw_result_rate': '이행률'})
-            fig_rate.update_layout(xaxis_type='category', yaxis_range=[-5, 105])
-            st.plotly_chart(fig_rate, use_container_width=True)
-            
-            # 수업 시간 막대 그래프
-            fig_dur = px.bar(df_plot, x='x_label', y='duration', title="수업 시간(분) 추이", 
-                             labels={'x_label': '시점', 'duration': '수업시간'})
-            fig_dur.update_layout(xaxis_type='category')
-            st.plotly_chart(fig_dur, use_container_width=True)
-        else:
-            st.warning("선택한 범위 내에 분석할 데이터가 부족합니다.")
+        # 평균을 내지 않고 모든 데이터를 점으로 표시 (색상을 회차로 구분)
+        fig_rate = px.scatter(df_plot, x='x_axis', y='hw_result_rate', 
+                              size=[10]*len(df_plot), color='session_num',
+                              title="기간별 숙제 이행률 분포", 
+                              labels={'x_axis': '시점', 'hw_result_rate': '이행률(%)', 'session_num': '회차'},
+                              hover_data=['date'])
+        # 선을 추가하여 흐름 표시
+        fig_rate.add_traces(px.line(df_plot, x='x_axis', y='hw_result_rate').data)
+        fig_rate.update_layout(xaxis_type='category', yaxis_range=[-5, 105])
+        st.plotly_chart(fig_rate, use_container_width=True)
+        
+        fig_dur = px.bar(df_plot, x='x_axis', y='duration', color='session_num',
+                         title="기간별 수업 시간 상세",
+                         labels={'x_axis': '시점', 'duration': '수업시간(분)'},
+                         barmode='group') # 같은 주/월에 여러 수업이 있으면 나란히 표시
+        fig_dur.update_layout(xaxis_type='category')
+        st.plotly_chart(fig_dur, use_container_width=True)
     else: st.info("데이터가 없습니다.")
 
 # --- TAB 3: 교재 관리 ---
