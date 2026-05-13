@@ -268,30 +268,69 @@ with tab3:
             s_books.remove(b); df_st.loc[df_st['id'] == s_id, 'books'] = json.dumps(s_books, ensure_ascii=False)
             save_data(df_st, "students"); st.rerun()
 
-# --- TAB 4: 전체 로그 ---
+# --- TAB 4: 전체 로그 (월별 필터링 기능 추가) ---
 with tab4:
-    st.subheader("📂 전체 수업 로그")
+    st.subheader("📂 수업 로그 조회")
+
     if not all_sessions.empty:
-        for _, row in all_sessions.iterrows():
-            title = f"📌 {int(row['session_num'])}회차 | {row['date']} ({int(row['duration'])}분) | {int(row['hw_result_rate'])}%"
+        # 데이터 전처리: 날짜 기반으로 '연도-월' 컬럼 생성
+        all_sessions['date_dt'] = pd.to_datetime(all_sessions['date'])
+        all_sessions['year_month'] = all_sessions['date_dt'].dt.strftime('%Y-%m')
+        
+        # 필터링 UI
+        available_months_log = sorted(all_sessions['year_month'].unique(), reverse=True)
+        log_filter = st.selectbox("📅 조회할 월 선택", ["전체 보기"] + available_months_log, key="log_month_filter")
+
+        # 필터 적용
+        if log_filter == "전체 보기":
+            display_df = all_sessions.sort_values(by='session_num', ascending=False)
+        else:
+            display_df = all_sessions[all_sessions['year_month'] == log_filter].sort_values(by='session_num', ascending=False)
+
+        st.write(f"🔍 **총 {len(display_df)}건**의 기록이 있습니다.")
+        st.divider()
+
+        # 로그 출력 루프
+        for _, row in display_df.iterrows():
+            # 회차, 날짜, 시간, 이행률을 한눈에 보여주는 제목
+            title = f"📌 {int(row['session_num'])}회차 | {row['date']} ({int(row['duration'])}분) | 숙제 {int(row['hw_result_rate'])}%"
+            
             with st.expander(title):
-                st.text(f"✅ 채점: {row['hw_detail']}")
-                st.text(f"📖 진도: {row['progress']}")
-                st.text(f"📝 숙제: {row['next_hw']}")
-                st.info(f"💬 피드백: {row['feedback']}")
+                col_log1, col_log2 = st.columns(2)
+                with col_log1:
+                    st.markdown("**✅ 숙제 채점 결과**")
+                    st.caption(row['hw_detail'] if row['hw_detail'] else "기록 없음")
+                    st.markdown("**📖 오늘 나간 진도**")
+                    st.caption(row['progress'] if row['progress'] else "기록 없음")
                 
-                if st.button("📝 이 데이터 수정", key=f"edit_log_{row['id']}"):
+                with col_log2:
+                    st.markdown("**📝 다음 시간 숙제**")
+                    st.caption(row['next_hw'] if row['next_hw'] else "숙제 없음")
+                    st.markdown("**💬 선생님 피드백**")
+                    st.info(row['feedback'] if row['feedback'] else "입력된 피드백이 없습니다.")
+
+                # 데이터 수정 버튼
+                if st.button("📝 이 데이터 수정하기", key=f"edit_log_{row['id']}"):
                     st.session_state.edit_id = row['id']
                     st.session_state.edit_date = row['date']
                     st.session_state.edit_session_num = int(row['session_num'])
                     st.session_state.edit_feedback = row['feedback']
+                    
+                    # 진도/숙제/채점 행 개수 복원 및 값 주입
                     p_parts = str(row['progress']).split(" | ")
                     st.session_state.p_rows = len(p_parts)
                     for i, p in enumerate(p_parts): st.session_state[f"edit_p_val_{i}"] = p
+                    
                     h_parts = str(row['next_hw']).split(" | ")
                     st.session_state.h_rows = len(h_parts)
                     for i, h in enumerate(h_parts): st.session_state[f"edit_h_val_{i}"] = h
+                    
                     c_parts = str(row['hw_detail']).split(" | ")
                     st.session_state.check_rows = len(c_parts)
                     for i, c in enumerate(c_parts): st.session_state[f"edit_c_val_{i}"] = c
-                    st.success("수정 데이터 로드 완료! 탭 1로 이동하세요."); time.sleep(1); st.rerun()
+                    
+                    st.success("데이터를 불러왔습니다. '수업 기록' 탭으로 이동하세요!")
+                    time.sleep(0.5)
+                    st.rerun()
+    else:
+        st.info("기록된 수업 로그가 없습니다.")
