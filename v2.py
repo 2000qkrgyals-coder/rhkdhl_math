@@ -44,7 +44,7 @@ def full_reset():
 
 # --- [3. 사이드바] ---
 with st.sidebar:
-    st.title("📑 Tutor Pro v10.3")
+    st.title("📑 Tutor Pro v10.4")
     df_st = load_data("students")
     if not df_st.empty:
         sel_name = st.selectbox("학생 선택", df_st['name'], key="main_student_selector")
@@ -57,7 +57,7 @@ with st.sidebar:
 
 tab1, tab2, tab3, tab4 = st.tabs(["📝 수업 기록/수정", "📊 학습 분석", "📚 교재 관리", "📂 전체 로그"])
 
-# --- TAB 1: 기록 및 수정 ---
+# --- TAB 1: 기록 및 수정 (숙제 불러오기 개선) ---
 with tab1:
     df_se = load_data("sessions")
     all_sessions = df_se[df_se['student_id'] == s_id].sort_values(by='session_num', ascending=False) if not df_se.empty else pd.DataFrame()
@@ -70,9 +70,7 @@ with tab1:
 
     st.write("### ✍️ 지난 숙제 채점")
     
-    # [수정] 숙제 불러오기: 날짜와 회차 정보 포함
     if not all_sessions.empty:
-        # 날짜, 회차, 숙제내용을 결합한 리스트 생성
         hw_options = {f"[{int(row['session_num'])}회차] {row['date']} : {row['next_hw']}": row['next_hw'] for _, row in all_sessions.iterrows()}
         selected_label = st.selectbox("📥 이전 숙제 불러오기", ["선택 안 함"] + list(hw_options.keys()))
         
@@ -162,32 +160,44 @@ with tab1:
     if col_h1.button("➕ 숙제칸+"): st.session_state.h_rows += 1; st.rerun()
     if col_h2.button("➖ 숙제칸-"): st.session_state.h_rows = max(1, st.session_state.h_rows-1); st.rerun()
 
-# --- TAB 2: 학습 분석 (X축 회차 표기 및 월별 오류 수정) ---
+# --- TAB 2: 학습 분석 (월별 오류 해결 및 X축 가시성 강화) ---
 with tab2:
     st.subheader("📊 학습 성장 분석")
     df_ana = df_se[df_se['student_id'] == s_id].copy()
     if not df_ana.empty:
+        # 데이터 전처리: 날짜 및 숫자형 변환
         df_ana['date'] = pd.to_datetime(df_ana['date'])
+        df_ana['hw_result_rate'] = pd.to_numeric(df_ana['hw_result_rate'], errors='coerce')
+        df_ana['duration'] = pd.to_numeric(df_ana['duration'], errors='coerce')
+        
         view_opt = st.radio("보기 설정", ["회차별(기본)", "주별 평균", "월별 평균"], horizontal=True)
         
         if view_opt == "주별 평균":
-            df_plot = df_ana.set_index('date').resample('W').mean(numeric_only=True).dropna().reset_index()
+            # 주별 집계: 데이터가 있는 날짜만 남김
+            df_plot = df_ana.resample('W', on='date').mean(numeric_only=True).dropna(subset=['hw_result_rate']).reset_index()
             df_plot['x_label'] = df_plot['date'].dt.strftime('%m/%d 주')
         elif view_opt == "월별 평균":
-            df_plot = df_ana.set_index('date').resample('ME').mean(numeric_only=True).dropna().reset_index()
+            # 월별 집계: 'ME'(Month End) 기준
+            df_plot = df_ana.resample('ME', on='date').mean(numeric_only=True).dropna(subset=['hw_result_rate']).reset_index()
             df_plot['x_label'] = df_plot['date'].dt.strftime('%Y-%m')
         else:
             df_plot = df_ana.sort_values('session_num')
             df_plot['x_label'] = df_plot['session_num'].astype(int).astype(str) + "회차"
 
-        fig_rate = px.line(df_plot, x='x_label', y='hw_result_rate', markers=True, 
-                          title="숙제 이행률 추이(%)", labels={'x_label': '시점', 'hw_result_rate': '이행률'})
-        fig_rate.update_layout(xaxis_type='category') # 회차가 숫자로 정렬되도록 카테고리 지정
-        st.plotly_chart(fig_rate, use_container_width=True)
-        
-        fig_dur = px.bar(df_plot, x='x_label', y='duration', title="수업 시간(분) 추이", 
-                         labels={'x_label': '시점', 'duration': '수업시간'})
-        st.plotly_chart(fig_dur, use_container_width=True)
+        if not df_plot.empty:
+            # 이행률 선 그래프
+            fig_rate = px.line(df_plot, x='x_label', y='hw_result_rate', markers=True, 
+                              title="숙제 이행률 추이(%)", labels={'x_label': '시점', 'hw_result_rate': '이행률'})
+            fig_rate.update_layout(xaxis_type='category', yaxis_range=[-5, 105])
+            st.plotly_chart(fig_rate, use_container_width=True)
+            
+            # 수업 시간 막대 그래프
+            fig_dur = px.bar(df_plot, x='x_label', y='duration', title="수업 시간(분) 추이", 
+                             labels={'x_label': '시점', 'duration': '수업시간'})
+            fig_dur.update_layout(xaxis_type='category')
+            st.plotly_chart(fig_dur, use_container_width=True)
+        else:
+            st.warning("선택한 범위 내에 분석할 데이터가 부족합니다.")
     else: st.info("데이터가 없습니다.")
 
 # --- TAB 3: 교재 관리 ---
@@ -195,8 +205,9 @@ with tab3:
     st.subheader("📚 교재 목록")
     nb = st.text_input("새 교재 명")
     if st.button("교재 추가") and nb:
-        s_books.append(nb); df_st.loc[df_st['id'] == s_id, 'books'] = json.dumps(s_books, ensure_ascii=False)
-        save_data(df_st, "students"); st.rerun()
+        if nb not in s_books:
+            s_books.append(nb); df_st.loc[df_st['id'] == s_id, 'books'] = json.dumps(s_books, ensure_ascii=False)
+            save_data(df_st, "students"); st.rerun()
     for i, b in enumerate(s_books):
         c_b, c_d = st.columns([4,1])
         c_b.write(f"📖 {b}")
@@ -230,5 +241,4 @@ with tab4:
                     c_parts = str(row['hw_detail']).split(" | ")
                     st.session_state.check_rows = len(c_parts)
                     for i, c in enumerate(c_parts): st.session_state[f"edit_c_val_{i}"] = c
-                    st.success("데이터를 불러왔습니다. '수업 기록/수정' 탭으로 이동하세요!")
-                    time.sleep(1); st.rerun()
+                    st.success("수정 데이터 로드 완료! 탭 1로 이동하세요."); time.sleep(1); st.rerun()
