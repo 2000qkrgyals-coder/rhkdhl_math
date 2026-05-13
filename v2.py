@@ -6,14 +6,12 @@ import plotly.express as px
 import json
 import time
 
-# --- [0. 보안 설정] ---
-# 실제 배포 시에는 비밀번호를 코드에 적지 말고 Streamlit Secrets 기능을 권장합니다.
-MASTER_PASSWORD = "03241005"  # <--- 선생님이 사용하실 비밀번호로 수정하세요.
+# --- [0. 보안 및 기본 설정] ---
+MASTER_PASSWORD = "03241005" 
 
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 
-# --- [1. 로그인 화면 구현] ---
 def login_screen():
     st.title("🔒 Tutor Pro Access")
     pwd = st.text_input("마스터 비밀번호를 입력하세요", type="password")
@@ -25,12 +23,11 @@ def login_screen():
         else:
             st.error("비밀번호가 일치하지 않습니다.")
 
-# 로그인되지 않은 경우 앱 실행 중단
 if not st.session_state.logged_in:
     login_screen()
     st.stop()
 
-# --- [1. 구글 시트 연결 및 데이터 로드] ---
+# --- [1. 구글 시트 연결 및 데이터 로직] ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_data(worksheet_name):
@@ -43,8 +40,11 @@ def load_data(worksheet_name):
 
 def save_data(df, worksheet_name):
     try:
+        # 숫자형 컬럼 강제 변환 (오답 통계 포함)
+        num_cols = ['id', 'student_id', 'session_num', 'duration', 'hw_result_rate', 
+                    'wrong_total', 'err_calc', 'err_concept', 'err_hard', 'err_understand']
         if not df.empty:
-            for col in ['id', 'student_id', 'session_num', 'duration', 'hw_result_rate']:
+            for col in num_cols:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
         conn.update(worksheet=worksheet_name, data=df)
@@ -52,23 +52,24 @@ def save_data(df, worksheet_name):
     except Exception as e:
         st.error(f"저장 실패: {e}")
 
-# --- [2. 세션 상태 및 초기화 로직] ---
+# --- [2. 세션 초기화 로직] ---
 if 'p_rows' not in st.session_state: st.session_state.p_rows = 1
 if 'h_rows' not in st.session_state: st.session_state.h_rows = 1
 if 'check_rows' not in st.session_state: st.session_state.check_rows = 1
 
 def full_reset():
     for key in list(st.session_state.keys()):
-        if key not in ['main_student_selector', 'p_rows', 'h_rows', 'check_rows']:
+        # 학생 선택과 로그인 정보, 행 개수 정보는 유지
+        if key not in ['main_student_selector', 'p_rows', 'h_rows', 'check_rows', 'logged_in']:
             del st.session_state[key]
     st.session_state.p_rows = 1
     st.session_state.h_rows = 1
     st.session_state.check_rows = 1
     st.rerun()
 
-# --- [3. 사이드바] ---
+# --- [3. 사이드바 및 학생 선택] ---
 with st.sidebar:
-    st.title("📑 Tutor Pro v10.5")
+    st.title("📑 Tutor Pro v11.0")
     df_st = load_data("students")
     if not df_st.empty:
         sel_name = st.selectbox("학생 선택", df_st['name'], key="main_student_selector")
@@ -77,32 +78,33 @@ with st.sidebar:
         try:
             s_books = json.loads(s_data['books']) if (pd.notna(s_data['books']) and s_data['books'] != "") else []
         except: s_books = []
-    else: st.stop()
+    else:
+        st.error("등록된 학생이 없습니다.")
+        st.stop()
 
 tab1, tab2, tab3, tab4 = st.tabs(["📝 수업 기록/수정", "📊 학습 분석", "📚 교재 관리", "📂 전체 로그"])
 
-# --- TAB 1: 기록 및 수정 ---
+# --- TAB 1: 수업 기록 및 수정 ---
 with tab1:
     df_se = load_data("sessions")
     all_sessions = df_se[df_se['student_id'] == s_id].sort_values(by='session_num', ascending=False) if not df_se.empty else pd.DataFrame()
 
-    col_status, col_reset = st.columns([4, 1])
     is_edit_mode = st.session_state.get('edit_id') is not None
+    col_status, col_reset = st.columns([4, 1])
     if is_edit_mode: 
         col_status.warning(f"🔄 **{st.session_state.edit_session_num}회차 수정 중**")
-    if col_reset.button("🔄 내용 초기화"): full_reset()
+    if col_reset.button("🔄 내용 초기화"): 
+        full_reset()
 
     st.write("### ✍️ 지난 숙제 채점")
-    
     if not all_sessions.empty:
         hw_options = {f"[{int(row['session_num'])}회차] {row['date']} : {row['next_hw']}": row['next_hw'] for _, row in all_sessions.iterrows()}
-        selected_label = st.selectbox("📥 이전 숙제 불러오기 (날짜/회차)", ["선택 안 함"] + list(hw_options.keys()))
-        
+        selected_label = st.selectbox("📥 이전 숙제 불러오기", ["선택 안 함"] + list(hw_options.keys()))
         if selected_label != "선택 안 함" and st.button("적용하기"):
             actual_hw = hw_options[selected_label]
             hw_parts = actual_hw.split(" | ")
             st.session_state.check_rows = len(hw_parts)
-            for i, part in enumerate(hw_parts):
+            for i, part in enumerate(hw_parts): 
                 st.session_state[f"edit_c_val_{i}"] = part
             st.rerun()
 
@@ -122,13 +124,23 @@ with tab1:
             cd = c4.number_input(f"푼", min_value=0, key=f"cd_{i}")
             if cb and cr: check_list.append(f"{cb}: {cr} ({cd}/{ct})")
             acc_total += ct; acc_done += cd
+        
         final_rate = int((acc_done / acc_total * 100)) if acc_total > 0 else 100
-        st.write(f"📊 **이행률 합계: {final_rate}%**")
-    else: final_rate = 100
+        st.info(f"📊 **이행률: {final_rate}%** (총 {acc_total}문항 중 {acc_done}문항 완료)")
 
-    c_btn1, c_btn2 = st.columns(2)
-    if c_btn1.button("➕ 채점칸 추가"): st.session_state.check_rows += 1; st.rerun()
-    if c_btn2.button("➖ 채점칸 제거"): st.session_state.check_rows = max(1, st.session_state.check_rows-1); st.rerun()
+        st.write("#### ❌ 오답 유형 분석")
+        w_total = st.number_input("전체 오답 개수", min_value=0, value=int(st.session_state.get('edit_w_total', 0)))
+        wc1, wc2, wc3, wc4 = st.columns(4)
+        w_calc = wc1.number_input("계산실수", min_value=0, value=int(st.session_state.get('edit_w_calc', 0)))
+        w_concept = wc2.number_input("개념부족", min_value=0, value=int(st.session_state.get('edit_w_concept', 0)))
+        w_hard = wc3.number_input("고난도", min_value=0, value=int(st.session_state.get('edit_w_hard', 0)))
+        w_under = wc4.number_input("문제이해", min_value=0, value=int(st.session_state.get('edit_w_under', 0)))
+    else:
+        final_rate, w_total, w_calc, w_concept, w_hard, w_under = 100, 0, 0, 0, 0, 0
+
+    c_c1, c_c2 = st.columns(2)
+    if c_c1.button("➕ 채점칸 추가"): st.session_state.check_rows += 1; st.rerun()
+    if c_c2.button("➖ 채점칸 제거"): st.session_state.check_rows = max(1, st.session_state.check_rows-1); st.rerun()
 
     st.divider()
 
@@ -148,23 +160,20 @@ with tab1:
         for i in range(st.session_state.p_rows):
             cc1, cc2 = st.columns([1, 2])
             e_p = st.session_state.get(f"edit_p_val_{i}", "")
-            p_book = e_p.split(":")[0].strip() if ":" in e_p else ""
-            p_range = e_p.split(":")[1].strip() if ":" in e_p else ""
-            pb = cc1.selectbox(f"진도 {i+1}", s_books, index=s_books.index(p_book) if p_book in s_books else 0, key=f"pb_{i}")
-            pr = cc2.text_input(f"진도 범위", value=p_range, key=f"pr_{i}")
+            pb = cc1.selectbox(f"진도 {i+1}", s_books, index=s_books.index(e_p.split(":")[0]) if ":" in e_p and e_p.split(":")[0] in s_books else 0, key=f"pb_{i}")
+            pr = cc2.text_input(f"진도 범위", value=e_p.split(":")[1].strip() if ":" in e_p else "", key=f"pr_{i}")
             if pb and pr: p_list.append(f"{pb}: {pr}")
         
         st.write("📝 다음 숙제")
         for i in range(st.session_state.h_rows):
             cc1, cc2 = st.columns([1, 2])
             e_h = st.session_state.get(f"edit_h_val_{i}", "")
-            h_book = e_h.split(":")[0].strip() if ":" in e_h else ""
-            h_range = e_h.split(":")[1].strip() if ":" in e_h else ""
-            hb = cc1.selectbox(f"숙제 {i+1}", s_books, index=s_books.index(h_book) if h_book in s_books else 0, key=f"hb_{i}")
-            hr = cc2.text_input(f"숙제 범위", value=h_range, key=f"hr_{i}")
+            hb = cc1.selectbox(f"숙제 {i+1}", s_books, index=s_books.index(e_h.split(":")[0]) if ":" in e_h and e_h.split(":")[0] in s_books else 0, key=f"hb_{i}")
+            hr = cc2.text_input(f"숙제 범위", value=e_h.split(":")[1].strip() if ":" in e_h else "", key=f"hr_{i}")
             if hb and hr: h_list.append(f"{hb}: {hr}")
 
         fback = st.text_area("피드백", value=st.session_state.get('edit_feedback', ""), key="fb_text")
+        
         if st.form_submit_button("💾 저장하기"):
             dur = (datetime.combine(date_in, end_t) - datetime.combine(date_in, start_t)).seconds // 60
             new_id = int(st.session_state.edit_id) if is_edit_mode else (int(df_se['id'].max()+1) if not df_se.empty else 1)
@@ -172,7 +181,8 @@ with tab1:
                 'id': new_id, 'student_id': s_id, 'date': str(date_in), 'session_num': int(sess_num),
                 'start_time': start_t.strftime("%H:%M"), 'end_time': end_t.strftime("%H:%M"), 'duration': int(dur),
                 'hw_detail': " | ".join(check_list), 'progress': " | ".join(p_list),
-                'hw_result_rate': int(final_rate), 'next_hw': " | ".join(h_list), 'feedback': fback
+                'hw_result_rate': int(final_rate), 'next_hw': " | ".join(h_list), 'feedback': fback,
+                'wrong_total': w_total, 'err_calc': w_calc, 'err_concept': w_concept, 'err_hard': w_hard, 'err_understand': w_under
             }
             if is_edit_mode: df_se = df_se[df_se['id'] != st.session_state.edit_id]
             save_data(pd.concat([df_se, pd.DataFrame([new_row])], ignore_index=True), "sessions")
@@ -184,74 +194,35 @@ with tab1:
     if col_h1.button("➕ 숙제칸+"): st.session_state.h_rows += 1; st.rerun()
     if col_h2.button("➖ 숙제칸-"): st.session_state.h_rows = max(1, st.session_state.h_rows-1); st.rerun()
 
-# --- TAB 2: 학습 분석 (월별 상세 필터링 모드) ---
+# --- TAB 2: 학습 분석 ---
 with tab2:
     st.subheader("📊 월별 상세 학습 통계")
-    
-    # 데이터 복사 및 전처리
     df_ana = df_se[df_se['student_id'] == s_id].copy()
-    
     if not df_ana.empty:
         df_ana['date'] = pd.to_datetime(df_ana['date'])
-        df_ana['hw_result_rate'] = pd.to_numeric(df_ana['hw_result_rate'], errors='coerce')
-        df_ana['duration'] = pd.to_numeric(df_ana['duration'], errors='coerce')
-        
-        # 1. 연도 및 월 선택UI (데이터가 있는 월만 추출)
         df_ana['year_month'] = df_ana['date'].dt.strftime('%Y-%m')
-        available_months = sorted(df_ana['year_month'].unique(), reverse=True)
-        
-        col_sel1, col_sel2 = st.columns([2, 3])
-        selected_month = col_sel1.selectbox("📅 분석할 월 선택", available_months)
-        
-        # 2. 선택한 월의 데이터만 필터링
+        selected_month = st.selectbox("📅 분석할 월 선택", sorted(df_ana['year_month'].unique(), reverse=True))
         df_filtered = df_ana[df_ana['year_month'] == selected_month].sort_values('date')
         
         if not df_filtered.empty:
-            # X축 라벨을 "일자(회차)" 형태로 만들어 식별이 잘 되게 함
-            df_filtered['x_axis'] = df_filtered['date'].dt.strftime('%m/%d') + \
-                                   " (" + df_filtered['session_num'].astype(int).astype(str) + "회)"
+            df_filtered['x_axis'] = df_filtered['date'].dt.strftime('%m/%d') + " (" + df_filtered['session_num'].astype(int).astype(str) + "회)"
+            st.plotly_chart(px.line(df_filtered, x='x_axis', y='hw_result_rate', markers=True, text='hw_result_rate', title="이행률 추이(%)").update_layout(xaxis_type='category', yaxis_range=[-5, 115]), use_container_width=True)
             
-            # --- 그래프 1: 숙제 이행률 (선 + 점) ---
-            st.write(f"### 📈 {selected_month} 이행률 추이")
-            fig_rate = px.line(df_filtered, x='x_axis', y='hw_result_rate', 
-                               markers=True,
-                               text='hw_result_rate', # 점 위에 숫자 표시
-                               title=f"{selected_month} 개별 수업별 이행률(%)", 
-                               labels={'x_axis': '날짜(회차)', 'hw_result_rate': '이행률(%)'})
-            
-            fig_rate.update_traces(textposition="top center")
-            fig_rate.update_layout(xaxis_type='category', yaxis_range=[-5, 115])
-            st.plotly_chart(fig_rate, use_container_width=True)
-            
-            # --- 그래프 2: 수업 시간 (막대) ---
-            st.write(f"### ⏱️ {selected_month} 수업 시간 상세")
-            fig_dur = px.bar(df_filtered, x='x_axis', y='duration', 
-                             text='duration',
-                             color='duration',
-                             color_continuous_scale='Blues',
-                             title=f"{selected_month} 개별 수업 시간(분)",
-                             labels={'x_axis': '날짜(회차)', 'duration': '수업시간(분)'})
-            
-            fig_dur.update_traces(textposition="outside")
-            fig_dur.update_layout(xaxis_type='category')
-            st.plotly_chart(fig_dur, use_container_width=True)
-            
-            # --- 월간 요약 지표 ---
+            st.write(f"### ❌ {selected_month} 오답 원인 분석")
+            w_sums = df_filtered[['err_calc', 'err_concept', 'err_hard', 'err_understand']].sum()
+            if w_sums.sum() > 0:
+                fig_pie = px.pie(values=w_sums.values, names=['계산실수', '개념부족', '고난도', '문제이해'], 
+                                 title=f"{selected_month} 누적 오답 유형 비율", hole=0.4,
+                                 color_discrete_sequence=px.colors.qualitative.Pastel)
+                st.plotly_chart(fig_pie, use_container_width=True)
+            else: st.info("이번 달은 기록된 오답 데이터가 없습니다.")
+
             st.divider()
-            m_avg_rate = int(df_filtered['hw_result_rate'].mean())
-            m_total_dur = int(df_filtered['duration'].sum())
-            m_count = len(df_filtered)
-            
             c1, c2, c3 = st.columns(3)
-            c1.metric("월평균 이행률", f"{m_avg_rate}%")
-            c2.metric("월 총 수업시간", f"{m_total_dur}분")
-            c3.metric("수업 횟수", f"{m_count}회")
-            
-        else:
-            st.warning("해당 월에는 기록된 수업이 없습니다.")
-            
-    else:
-        st.info("데이터가 없습니다. 먼저 수업을 기록해 주세요.")
+            c1.metric("월평균 이행률", f"{int(df_filtered['hw_result_rate'].mean())}%")
+            c2.metric("총 수업시간", f"{int(df_filtered['duration'].sum())}분")
+            c3.metric("누적 오답수", f"{int(w_sums.sum())}개")
+    else: st.info("데이터가 없습니다.")
 
 # --- TAB 3: 교재 관리 ---
 with tab3:
@@ -268,59 +239,46 @@ with tab3:
             s_books.remove(b); df_st.loc[df_st['id'] == s_id, 'books'] = json.dumps(s_books, ensure_ascii=False)
             save_data(df_st, "students"); st.rerun()
 
-# --- TAB 4: 전체 로그 (물결표 버그 수정 반영) ---
+# --- TAB 4: 전체 로그 ---
 with tab4:
     st.subheader("📂 수업 로그 조회")
-
     if not all_sessions.empty:
-        # 데이터 전처리: 날짜 기반으로 '연도-월' 컬럼 생성
         all_sessions['date_dt'] = pd.to_datetime(all_sessions['date'])
         all_sessions['year_month'] = all_sessions['date_dt'].dt.strftime('%Y-%m')
-        
-        # 필터링 UI
-        available_months_log = sorted(all_sessions['year_month'].unique(), reverse=True)
-        log_filter = st.selectbox("📅 조회할 월 선택", ["전체 보기"] + available_months_log, key="log_month_filter")
+        log_filter = st.selectbox("📅 조회할 월 선택", ["전체 보기"] + sorted(all_sessions['year_month'].unique(), reverse=True), key="log_month_filter")
+        display_df = all_sessions if log_filter == "전체 보기" else all_sessions[all_sessions['year_month'] == log_filter]
 
-        # 필터 적용
-        if log_filter == "전체 보기":
-            display_df = all_sessions.sort_values(by='session_num', ascending=False)
-        else:
-            display_df = all_sessions[all_sessions['year_month'] == log_filter].sort_values(by='session_num', ascending=False)
-
-        st.write(f"🔍 **총 {len(display_df)}건**의 기록이 있습니다.")
-        st.divider()
-
-        # 로그 출력 루프
         for _, row in display_df.iterrows():
-            title = f"📌 {int(row['session_num'])}회차 | {row['date']} ({int(row['duration'])}분) | 숙제 {int(row['hw_result_rate'])}%"
-            
+            title = f"📌 {int(row['session_num'])}회차 | {row['date']} | 이행 {int(row['hw_result_rate'])}%"
             with st.expander(title):
-                col_log1, col_log2 = st.columns(2)
-                with col_log1:
-                    st.markdown("**✅ 숙제 채점 결과**")
-                    # [수정] st.caption 대신 st.text를 사용하여 마크다운(취소선) 버그 방지
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.markdown("**✅ 숙제 상세**")
                     st.text(row['hw_detail'] if row['hw_detail'] else "기록 없음")
-                    
-                    st.markdown("**📖 오늘 나간 진도**")
+                    st.markdown("**❌ 오답 분석**")
+                    if row['wrong_total'] > 0:
+                        st.caption(f"총 {int(row['wrong_total'])}개 (계산:{int(row['err_calc'])} / 개념:{int(row['err_concept'])} / 난이도:{int(row['err_hard'])} / 이해:{int(row['err_understand'])})")
+                    else: st.caption("오답 기록 없음")
+                with c2:
+                    st.markdown("**📖 진도**")
                     st.text(row['progress'] if row['progress'] else "기록 없음")
-                
-                with col_log2:
-                    st.markdown("**📝 다음 시간 숙제**")
-                    # [수정] 물결표(~)가 취소선으로 변하지 않도록 st.text 사용
+                    st.markdown("**📝 다음 숙제**")
                     st.text(row['next_hw'] if row['next_hw'] else "숙제 없음")
-                    
-                    st.markdown("**💬 선생님 피드백**")
-                    # 피드백은 박스 형태 유지를 위해 st.info를 쓰되 내부 텍스트만 처리
-                    st.info(row['feedback'] if row['feedback'] else "입력된 피드백이 없습니다.")
-
-                # 데이터 수정 버튼 (기존 로직 유지)
-                if st.button("📝 이 데이터 수정하기", key=f"edit_log_{row['id']}"):
+                
+                st.info(f"💬 피드백: {row['feedback']}")
+                
+                if st.button("📝 수정하기", key=f"edit_log_{row['id']}"):
                     st.session_state.edit_id = row['id']
                     st.session_state.edit_date = row['date']
                     st.session_state.edit_session_num = int(row['session_num'])
                     st.session_state.edit_feedback = row['feedback']
+                    st.session_state.edit_w_total = row['wrong_total']
+                    st.session_state.edit_w_calc = row['err_calc']
+                    st.session_state.edit_w_concept = row['err_concept']
+                    st.session_state.edit_w_hard = row['err_hard']
+                    st.session_state.edit_w_under = row['err_understand']
                     
-                    # 데이터 분리 로직
+                    # 행 개수 및 상세 내용 복원
                     for col, state_key in [('progress', 'p_rows'), ('next_hw', 'h_rows'), ('hw_detail', 'check_rows')]:
                         parts = str(row[col]).split(" | ")
                         st.session_state[state_key] = len(parts)
@@ -328,8 +286,5 @@ with tab4:
                         for i, p in enumerate(parts):
                             st.session_state[f"{prefix}{i}"] = p
                     
-                    st.success("데이터를 불러왔습니다. '수업 기록' 탭으로 이동하세요!")
-                    time.sleep(0.5)
-                    st.rerun()
-    else:
-        st.info("기록된 수업 로그가 없습니다.")
+                    st.success("데이터 로드 완료! 탭 1로 이동하세요."); time.sleep(0.5); st.rerun()
+    else: st.info("로그가 없습니다.")
