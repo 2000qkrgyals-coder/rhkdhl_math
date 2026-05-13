@@ -1,7 +1,7 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-from datetime import datetime, time as dt_time, timedelta
+from datetime import datetime, time as dt_time
 import plotly.express as px
 import json
 import time
@@ -34,7 +34,6 @@ if 'h_rows' not in st.session_state: st.session_state.h_rows = 1
 if 'check_rows' not in st.session_state: st.session_state.check_rows = 1
 
 def full_reset():
-    """모든 입력값 초기화"""
     for key in list(st.session_state.keys()):
         if key not in ['main_student_selector', 'p_rows', 'h_rows', 'check_rows']:
             del st.session_state[key]
@@ -45,7 +44,7 @@ def full_reset():
 
 # --- [3. 사이드바] ---
 with st.sidebar:
-    st.title("📑 Tutor Pro v10.2")
+    st.title("📑 Tutor Pro v10.3")
     df_st = load_data("students")
     if not df_st.empty:
         sel_name = st.selectbox("학생 선택", df_st['name'], key="main_student_selector")
@@ -71,12 +70,15 @@ with tab1:
 
     st.write("### ✍️ 지난 숙제 채점")
     
-    # [기능 추가] 이전 숙제 불러오기
+    # [수정] 숙제 불러오기: 날짜와 회차 정보 포함
     if not all_sessions.empty:
-        prev_hw_opt = all_sessions['next_hw'].tolist()
-        selected_prev = st.selectbox("📥 이전 숙제 불러오기", ["선택 안 함"] + prev_hw_opt)
-        if selected_prev != "선택 안 함" and st.button("적용하기"):
-            hw_parts = selected_prev.split(" | ")
+        # 날짜, 회차, 숙제내용을 결합한 리스트 생성
+        hw_options = {f"[{int(row['session_num'])}회차] {row['date']} : {row['next_hw']}": row['next_hw'] for _, row in all_sessions.iterrows()}
+        selected_label = st.selectbox("📥 이전 숙제 불러오기", ["선택 안 함"] + list(hw_options.keys()))
+        
+        if selected_label != "선택 안 함" and st.button("적용하기"):
+            actual_hw = hw_options[selected_label]
+            hw_parts = actual_hw.split(" | ")
             st.session_state.check_rows = len(hw_parts)
             for i, part in enumerate(hw_parts):
                 st.session_state[f"edit_c_val_{i}"] = part
@@ -88,7 +90,6 @@ with tab1:
     if not no_hw:
         for i in range(st.session_state.check_rows):
             c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
-            # 불러온 값 파싱 로직
             e_val = st.session_state.get(f"edit_c_val_{i}", "")
             def_book = e_val.split(":")[0] if ":" in e_val else (s_books[0] if s_books else "미등록")
             def_range = e_val.split(":")[1].split("(")[0].strip() if "(" in e_val else (e_val.split(":")[1].strip() if ":" in e_val else "")
@@ -103,7 +104,6 @@ with tab1:
         st.write(f"📊 **이행률 합계: {final_rate}%**")
     else: final_rate = 100
 
-    # [버튼 분리] 채점 칸 조절
     c_btn1, c_btn2 = st.columns(2)
     if c_btn1.button("➕ 채점칸 추가"): st.session_state.check_rows += 1; st.rerun()
     if c_btn2.button("➖ 채점칸 제거"): st.session_state.check_rows = max(1, st.session_state.check_rows-1); st.rerun()
@@ -113,7 +113,6 @@ with tab1:
     with st.form("lesson_form"):
         st.write("### 📖 오늘 수업 정보")
         c_d, c_n = st.columns(2)
-        # 수정 모드 시 날짜/회차 불러오기
         d_val = datetime.strptime(st.session_state.edit_date, "%Y-%m-%d") if is_edit_mode else datetime.now()
         date_in = c_d.date_input("날짜", d_val)
         next_s = int(all_sessions['session_num'].max() + 1) if not all_sessions.empty else 1
@@ -133,7 +132,6 @@ with tab1:
             pr = cc2.text_input(f"진도 범위", value=p_range, key=f"pr_{i}")
             if pb and pr: p_list.append(f"{pb}: {pr}")
         
-        # [버튼 분리] 진도 칸 조절 (폼 밖에서 실행 불가하므로 폼 안에 배치하거나 폼 밖으로 버튼 이동)
         st.write("📝 다음 숙제")
         for i in range(st.session_state.h_rows):
             cc1, cc2 = st.columns([1, 2])
@@ -158,33 +156,38 @@ with tab1:
             save_data(pd.concat([df_se, pd.DataFrame([new_row])], ignore_index=True), "sessions")
             st.success("저장되었습니다!"); time.sleep(1); full_reset()
 
-    # 진도/숙제 칸 조절 버튼 (폼 외부)
     col_p1, col_p2, col_h1, col_h2 = st.columns(4)
     if col_p1.button("➕ 진도칸+"): st.session_state.p_rows += 1; st.rerun()
     if col_p2.button("➖ 진도칸-"): st.session_state.p_rows = max(1, st.session_state.p_rows-1); st.rerun()
     if col_h1.button("➕ 숙제칸+"): st.session_state.h_rows += 1; st.rerun()
     if col_h2.button("➖ 숙제칸-"): st.session_state.h_rows = max(1, st.session_state.h_rows-1); st.rerun()
 
-# --- TAB 2: 학습 분석 (주별/월별 추가) ---
+# --- TAB 2: 학습 분석 (X축 회차 표기 및 월별 오류 수정) ---
 with tab2:
     st.subheader("📊 학습 성장 분석")
     df_ana = df_se[df_se['student_id'] == s_id].copy()
     if not df_ana.empty:
         df_ana['date'] = pd.to_datetime(df_ana['date'])
-        view_opt = st.radio("보기 설정", ["전체", "주별 평균", "월별 평균"], horizontal=True)
+        view_opt = st.radio("보기 설정", ["회차별(기본)", "주별 평균", "월별 평균"], horizontal=True)
         
         if view_opt == "주별 평균":
-            df_plot = df_ana.resample('W', on='date').mean(numeric_only=True).reset_index()
-            x_axis = 'date'
+            df_plot = df_ana.set_index('date').resample('W').mean(numeric_only=True).dropna().reset_index()
+            df_plot['x_label'] = df_plot['date'].dt.strftime('%m/%d 주')
         elif view_opt == "월별 평균":
-            df_plot = df_ana.resample('M', on='date').mean(numeric_only=True).reset_index()
-            x_axis = 'date'
+            df_plot = df_ana.set_index('date').resample('ME').mean(numeric_only=True).dropna().reset_index()
+            df_plot['x_label'] = df_plot['date'].dt.strftime('%Y-%m')
         else:
             df_plot = df_ana.sort_values('session_num')
-            x_axis = 'session_num'
+            df_plot['x_label'] = df_plot['session_num'].astype(int).astype(str) + "회차"
 
-        st.plotly_chart(px.line(df_plot, x=x_axis, y='hw_result_rate', markers=True, title="숙제 이행률 추이(%)"))
-        st.plotly_chart(px.bar(df_plot, x=x_axis, y='duration', title="수업 시간(분) 추이"))
+        fig_rate = px.line(df_plot, x='x_label', y='hw_result_rate', markers=True, 
+                          title="숙제 이행률 추이(%)", labels={'x_label': '시점', 'hw_result_rate': '이행률'})
+        fig_rate.update_layout(xaxis_type='category') # 회차가 숫자로 정렬되도록 카테고리 지정
+        st.plotly_chart(fig_rate, use_container_width=True)
+        
+        fig_dur = px.bar(df_plot, x='x_label', y='duration', title="수업 시간(분) 추이", 
+                         labels={'x_label': '시점', 'duration': '수업시간'})
+        st.plotly_chart(fig_dur, use_container_width=True)
     else: st.info("데이터가 없습니다.")
 
 # --- TAB 3: 교재 관리 ---
@@ -201,7 +204,7 @@ with tab3:
             s_books.remove(b); df_st.loc[df_st['id'] == s_id, 'books'] = json.dumps(s_books, ensure_ascii=False)
             save_data(df_st, "students"); st.rerun()
 
-# --- TAB 4: 전체 로그 (수정 버튼 복구 및 연동) ---
+# --- TAB 4: 전체 로그 ---
 with tab4:
     st.subheader("📂 전체 수업 로그")
     if not all_sessions.empty:
@@ -213,26 +216,19 @@ with tab4:
                 st.text(f"📝 숙제: {row['next_hw']}")
                 st.info(f"💬 피드백: {row['feedback']}")
                 
-                # [수정 버튼 복구 및 탭1 데이터 전달]
                 if st.button("📝 이 데이터 수정", key=f"edit_log_{row['id']}"):
                     st.session_state.edit_id = row['id']
                     st.session_state.edit_date = row['date']
                     st.session_state.edit_session_num = int(row['session_num'])
                     st.session_state.edit_feedback = row['feedback']
-                    
-                    # 진도/숙제/채점 데이터 분해해서 세션에 저장
                     p_parts = str(row['progress']).split(" | ")
                     st.session_state.p_rows = len(p_parts)
                     for i, p in enumerate(p_parts): st.session_state[f"edit_p_val_{i}"] = p
-                    
                     h_parts = str(row['next_hw']).split(" | ")
                     st.session_state.h_rows = len(h_parts)
                     for i, h in enumerate(h_parts): st.session_state[f"edit_h_val_{i}"] = h
-                    
                     c_parts = str(row['hw_detail']).split(" | ")
                     st.session_state.check_rows = len(c_parts)
                     for i, c in enumerate(c_parts): st.session_state[f"edit_c_val_{i}"] = c
-                    
                     st.success("데이터를 불러왔습니다. '수업 기록/수정' 탭으로 이동하세요!")
-                    time.sleep(1)
-                    st.rerun()
+                    time.sleep(1); st.rerun()
