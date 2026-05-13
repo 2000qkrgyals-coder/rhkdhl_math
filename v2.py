@@ -268,7 +268,7 @@ with tab3:
             s_books.remove(b); df_st.loc[df_st['id'] == s_id, 'books'] = json.dumps(s_books, ensure_ascii=False)
             save_data(df_st, "students"); st.rerun()
 
-# --- TAB 4: 전체 로그 (월별 필터링 기능 추가) ---
+# --- TAB 4: 전체 로그 (물결표 버그 수정 반영) ---
 with tab4:
     st.subheader("📂 수업 로그 조회")
 
@@ -292,42 +292,41 @@ with tab4:
 
         # 로그 출력 루프
         for _, row in display_df.iterrows():
-            # 회차, 날짜, 시간, 이행률을 한눈에 보여주는 제목
             title = f"📌 {int(row['session_num'])}회차 | {row['date']} ({int(row['duration'])}분) | 숙제 {int(row['hw_result_rate'])}%"
             
             with st.expander(title):
                 col_log1, col_log2 = st.columns(2)
                 with col_log1:
                     st.markdown("**✅ 숙제 채점 결과**")
-                    st.caption(row['hw_detail'] if row['hw_detail'] else "기록 없음")
+                    # [수정] st.caption 대신 st.text를 사용하여 마크다운(취소선) 버그 방지
+                    st.text(row['hw_detail'] if row['hw_detail'] else "기록 없음")
+                    
                     st.markdown("**📖 오늘 나간 진도**")
-                    st.caption(row['progress'] if row['progress'] else "기록 없음")
+                    st.text(row['progress'] if row['progress'] else "기록 없음")
                 
                 with col_log2:
                     st.markdown("**📝 다음 시간 숙제**")
-                    st.caption(row['next_hw'] if row['next_hw'] else "숙제 없음")
+                    # [수정] 물결표(~)가 취소선으로 변하지 않도록 st.text 사용
+                    st.text(row['next_hw'] if row['next_hw'] else "숙제 없음")
+                    
                     st.markdown("**💬 선생님 피드백**")
+                    # 피드백은 박스 형태 유지를 위해 st.info를 쓰되 내부 텍스트만 처리
                     st.info(row['feedback'] if row['feedback'] else "입력된 피드백이 없습니다.")
 
-                # 데이터 수정 버튼
+                # 데이터 수정 버튼 (기존 로직 유지)
                 if st.button("📝 이 데이터 수정하기", key=f"edit_log_{row['id']}"):
                     st.session_state.edit_id = row['id']
                     st.session_state.edit_date = row['date']
                     st.session_state.edit_session_num = int(row['session_num'])
                     st.session_state.edit_feedback = row['feedback']
                     
-                    # 진도/숙제/채점 행 개수 복원 및 값 주입
-                    p_parts = str(row['progress']).split(" | ")
-                    st.session_state.p_rows = len(p_parts)
-                    for i, p in enumerate(p_parts): st.session_state[f"edit_p_val_{i}"] = p
-                    
-                    h_parts = str(row['next_hw']).split(" | ")
-                    st.session_state.h_rows = len(h_parts)
-                    for i, h in enumerate(h_parts): st.session_state[f"edit_h_val_{i}"] = h
-                    
-                    c_parts = str(row['hw_detail']).split(" | ")
-                    st.session_state.check_rows = len(c_parts)
-                    for i, c in enumerate(c_parts): st.session_state[f"edit_c_val_{i}"] = c
+                    # 데이터 분리 로직
+                    for col, state_key in [('progress', 'p_rows'), ('next_hw', 'h_rows'), ('hw_detail', 'check_rows')]:
+                        parts = str(row[col]).split(" | ")
+                        st.session_state[state_key] = len(parts)
+                        prefix = 'edit_p_val_' if col == 'progress' else ('edit_h_val_' if col == 'next_hw' else 'edit_c_val_')
+                        for i, p in enumerate(parts):
+                            st.session_state[f"{prefix}{i}"] = p
                     
                     st.success("데이터를 불러왔습니다. '수업 기록' 탭으로 이동하세요!")
                     time.sleep(0.5)
