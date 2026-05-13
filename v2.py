@@ -6,6 +6,30 @@ import plotly.express as px
 import json
 import time
 
+# --- [0. 보안 설정] ---
+# 실제 배포 시에는 비밀번호를 코드에 적지 말고 Streamlit Secrets 기능을 권장합니다.
+MASTER_PASSWORD = "03241005"  # <--- 선생님이 사용하실 비밀번호로 수정하세요.
+
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+
+# --- [1. 로그인 화면 구현] ---
+def login_screen():
+    st.title("🔒 Tutor Pro Access")
+    pwd = st.text_input("마스터 비밀번호를 입력하세요", type="password")
+    if st.button("로그인"):
+        if pwd == MASTER_PASSWORD:
+            st.session_state.logged_in = True
+            st.success("로그인 성공!")
+            st.rerun()
+        else:
+            st.error("비밀번호가 일치하지 않습니다.")
+
+# 로그인되지 않은 경우 앱 실행 중단
+if not st.session_state.logged_in:
+    login_screen()
+    st.stop()
+
 # --- [1. 구글 시트 연결 및 데이터 로드] ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
