@@ -295,36 +295,59 @@ with tab4:
         display_df = all_sessions if log_filter == "전체 보기" else all_sessions[all_sessions['year_month'] == log_filter]
 
         for _, row in display_df.iterrows():
-            title = f"📌 {int(row['session_num'])}회차 | {row['date']} | 이행 {int(row['hw_result_rate'])}%"
+            # 제목에 테스트 실시 여부 표시
+            test_tag = f" | 📝 {row['test_name']}" if row.get('test_total', 0) > 0 else ""
+            title = f"📌 {int(row['session_num'])}회차 | {row['date']} | 이행 {int(row['hw_result_rate'])}%{test_tag}"
+            
             with st.expander(title):
-                c1, c2 = st.columns(2)
-                with c1:
-                    st.markdown("**✅ 숙제 상세**")
+                col_info1, col_info2 = st.columns(2)
+                
+                with col_info1:
+                    st.markdown("**✅ 숙제 및 오답**")
                     st.text(row['hw_detail'] if row['hw_detail'] else "기록 없음")
-                    st.markdown("**❌ 오답 분석**")
                     if row['wrong_total'] > 0:
-                        st.caption(f"총 {int(row['wrong_total'])}개 (계산:{int(row['err_calc'])} / 개념:{int(row['err_concept'])} / 난이도:{int(row['err_hard'])} / 이해:{int(row['err_understand'])})")
-                    else: st.caption("오답 기록 없음")
-                with c2:
-                    st.markdown("**📖 진도**")
+                        st.caption(f"📍 숙제오답: 총 {int(row['wrong_total'])}개 (계산:{int(row['err_calc'])} / 개념:{int(row['err_concept'])} / 난이도:{int(row['err_hard'])} / 이해:{int(row['err_understand'])})")
+                    
+                    st.markdown("**📝 데일리 테스트**")
+                    if row.get('test_total', 0) > 0:
+                        st.write(f" 결과: **{int(row['test_score'])} / {int(row['test_total'])}**")
+                        st.caption(f"📍 테스트오답: 계산:{int(row['test_calc'])} / 개념:{int(row['test_concept'])} / 난이도:{int(row['test_hard'])} / 이해:{int(row['test_under'])}")
+                    else:
+                        st.caption("실시하지 않음")
+
+                with col_info2:
+                    st.markdown("**📖 수업 진도**")
                     st.text(row['progress'] if row['progress'] else "기록 없음")
-                    st.markdown("**📝 다음 숙제**")
+                    st.markdown("**🚀 다음 숙제**")
                     st.text(row['next_hw'] if row['next_hw'] else "숙제 없음")
                 
                 st.info(f"💬 피드백: {row['feedback']}")
                 
+                # --- 수정하기 버튼 클릭 시 모든 데이터(테스트 포함) 복원 ---
                 if st.button("📝 수정하기", key=f"edit_log_{row['id']}"):
+                    # 기본 정보 복원
                     st.session_state.edit_id = row['id']
                     st.session_state.edit_date = row['date']
                     st.session_state.edit_session_num = int(row['session_num'])
                     st.session_state.edit_feedback = row['feedback']
+                    
+                    # 숙제 오답 데이터 복원
                     st.session_state.edit_w_total = row['wrong_total']
                     st.session_state.edit_w_calc = row['err_calc']
                     st.session_state.edit_w_concept = row['err_concept']
                     st.session_state.edit_w_hard = row['err_hard']
                     st.session_state.edit_w_under = row['err_understand']
                     
-                    # 행 개수 및 상세 내용 복원
+                    # 데일리 테스트 데이터 복원
+                    st.session_state.edit_test_name = row.get('test_name', "")
+                    st.session_state.edit_test_total = row.get('test_total', 0)
+                    st.session_state.edit_test_score = row.get('test_score', 0)
+                    st.session_state.edit_t_calc = row.get('test_calc', 0)
+                    st.session_state.edit_t_concept = row.get('test_concept', 0)
+                    st.session_state.edit_t_hard = row.get('test_hard', 0)
+                    st.session_state.edit_t_under = row.get('test_under', 0)
+                    
+                    # 가변 행(진도, 숙제, 채점칸) 개수 및 내용 복원
                     for col, state_key in [('progress', 'p_rows'), ('next_hw', 'h_rows'), ('hw_detail', 'check_rows')]:
                         parts = str(row[col]).split(" | ")
                         st.session_state[state_key] = len(parts)
@@ -332,5 +355,6 @@ with tab4:
                         for i, p in enumerate(parts):
                             st.session_state[f"{prefix}{i}"] = p
                     
-                    st.success("데이터 로드 완료! 탭 1로 이동하세요."); time.sleep(0.5); st.rerun()
-    else: st.info("로그가 없습니다.")
+                    st.success("테스트 데이터를 포함하여 모든 정보를 불러왔습니다. 탭 1로 이동하세요!"); time.sleep(0.8); st.rerun()
+    else:
+        st.info("로그가 없습니다.")
