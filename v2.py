@@ -96,6 +96,7 @@ with tab1:
     if col_reset.button("🔄 내용 초기화"): 
         full_reset()
 
+    # --- 1. 숙제 채점 섹션 ---
     st.write("### ✍️ 지난 숙제 채점")
     if not all_sessions.empty:
         hw_options = {f"[{int(row['session_num'])}회차] {row['date']} : {row['next_hw']}": row['next_hw'] for _, row in all_sessions.iterrows()}
@@ -128,8 +129,8 @@ with tab1:
         final_rate = int((acc_done / acc_total * 100)) if acc_total > 0 else 100
         st.info(f"📊 **이행률: {final_rate}%** (총 {acc_total}문항 중 {acc_done}문항 완료)")
 
-        st.write("#### ❌ 오답 유형 분석")
-        w_total = st.number_input("전체 오답 개수", min_value=0, value=int(st.session_state.get('edit_w_total', 0)))
+        st.write("#### ❌ 숙제 오답 분석")
+        w_total = st.number_input("전체 숙제 오답 개수", min_value=0, value=int(st.session_state.get('edit_w_total', 0)))
         wc1, wc2, wc3, wc4 = st.columns(4)
         w_calc = wc1.number_input("계산실수", min_value=0, value=int(st.session_state.get('edit_w_calc', 0)))
         w_concept = wc2.number_input("개념부족", min_value=0, value=int(st.session_state.get('edit_w_concept', 0)))
@@ -142,8 +143,29 @@ with tab1:
     if c_c1.button("➕ 채점칸 추가"): st.session_state.check_rows += 1; st.rerun()
     if c_c2.button("➖ 채점칸 제거"): st.session_state.check_rows = max(1, st.session_state.check_rows-1); st.rerun()
 
+    # --- 2. 데일리 테스트 섹션 (추가됨) ---
+    st.divider()
+    st.write("### 📝 데일리 테스트 결과")
+    use_test = st.checkbox("오늘 데일리 테스트 실시", value=int(st.session_state.get('edit_test_total', 0)) > 0)
+    
+    if use_test:
+        tc1, tc2, tc3 = st.columns([2, 1, 1])
+        t_name = tc1.text_input("테스트 명", value=st.session_state.get('edit_test_name', "단원평가"), key="t_name")
+        t_total = tc2.number_input("T.총 문항", min_value=0, value=int(st.session_state.get('edit_test_total', 0)), key="t_total")
+        t_score = tc3.number_input("T.맞은 개수", min_value=0, value=int(st.session_state.get('edit_test_score', 0)), key="t_score")
+        
+        st.write("❌ 테스트 오답 분석")
+        twc1, twc2, twc3, twc4 = st.columns(4)
+        t_calc = twc1.number_input("T.계산실수", min_value=0, value=int(st.session_state.get('edit_t_calc', 0)), key="t_calc")
+        t_concept = twc2.number_input("T.개념부족", min_value=0, value=int(st.session_state.get('edit_t_concept', 0)), key="t_concept")
+        t_hard = twc3.number_input("T.고난도", min_value=0, value=int(st.session_state.get('edit_t_hard', 0)), key="t_hard")
+        t_under = twc4.number_input("T.문제이해", min_value=0, value=int(st.session_state.get('edit_t_under', 0)), key="t_under")
+    else:
+        t_name, t_total, t_score, t_calc, t_concept, t_hard, t_under = "", 0, 0, 0, 0, 0, 0
+
     st.divider()
 
+    # --- 3. 오늘 수업 정보 입력 폼 ---
     with st.form("lesson_form"):
         st.write("### 📖 오늘 수업 정보")
         c_d, c_n = st.columns(2)
@@ -182,7 +204,9 @@ with tab1:
                 'start_time': start_t.strftime("%H:%M"), 'end_time': end_t.strftime("%H:%M"), 'duration': int(dur),
                 'hw_detail': " | ".join(check_list), 'progress': " | ".join(p_list),
                 'hw_result_rate': int(final_rate), 'next_hw': " | ".join(h_list), 'feedback': fback,
-                'wrong_total': w_total, 'err_calc': w_calc, 'err_concept': w_concept, 'err_hard': w_hard, 'err_understand': w_under
+                'wrong_total': w_total, 'err_calc': w_calc, 'err_concept': w_concept, 'err_hard': w_hard, 'err_understand': w_under,
+                'test_name': t_name, 'test_total': t_total, 'test_score': t_score,
+                'test_calc': t_calc, 'test_concept': t_concept, 'test_hard': t_hard, 'test_under': t_under
             }
             if is_edit_mode: df_se = df_se[df_se['id'] != st.session_state.edit_id]
             save_data(pd.concat([df_se, pd.DataFrame([new_row])], ignore_index=True), "sessions")
@@ -206,22 +230,44 @@ with tab2:
         
         if not df_filtered.empty:
             df_filtered['x_axis'] = df_filtered['date'].dt.strftime('%m/%d') + " (" + df_filtered['session_num'].astype(int).astype(str) + "회)"
+            
+            # 1. 숙제 이행률 차트
             st.plotly_chart(px.line(df_filtered, x='x_axis', y='hw_result_rate', markers=True, text='hw_result_rate', title="이행률 추이(%)").update_layout(xaxis_type='category', yaxis_range=[-5, 115]), use_container_width=True)
             
+            # 2. 오답 원인 분석 (숙제 vs 테스트 비교)
             st.write(f"### ❌ {selected_month} 오답 원인 분석")
-            w_sums = df_filtered[['err_calc', 'err_concept', 'err_hard', 'err_understand']].sum()
-            if w_sums.sum() > 0:
-                fig_pie = px.pie(values=w_sums.values, names=['계산실수', '개념부족', '고난도', '문제이해'], 
-                                 title=f"{selected_month} 누적 오답 유형 비율", hole=0.4,
-                                 color_discrete_sequence=px.colors.qualitative.Pastel)
-                st.plotly_chart(fig_pie, use_container_width=True)
-            else: st.info("이번 달은 기록된 오답 데이터가 없습니다.")
+            an_col1, an_col2 = st.columns(2)
+            
+            with an_col1:
+                st.write("**[숙제 오답]**")
+                w_sums = df_filtered[['err_calc', 'err_concept', 'err_hard', 'err_understand']].sum()
+                if w_sums.sum() > 0:
+                    fig_hw_pie = px.pie(values=w_sums.values, names=['계산실수', '개념부족', '고난도', '문제이해'], hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+                    st.plotly_chart(fig_hw_pie, use_container_width=True)
+                else: st.caption("숙제 오답 데이터 없음")
+            
+            with an_col2:
+                st.write("**[테스트 오답]**")
+                t_w_sums = df_filtered[['test_calc', 'test_concept', 'test_hard', 'test_under']].sum()
+                if t_w_sums.sum() > 0:
+                    fig_test_pie = px.pie(values=t_w_sums.values, names=['계산실수', '개념부족', '고난도', '문제이해'], hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe)
+                    st.plotly_chart(fig_test_pie, use_container_width=True)
+                else: st.caption("테스트 오답 데이터 없음")
+
+            st.divider()
+            # 3. 테스트 점수 리스트
+            st.write("📝 **월간 테스트 성적표**")
+            df_test_table = df_filtered[df_filtered['test_total'] > 0][['date', 'test_name', 'test_score', 'test_total']]
+            if not df_test_table.empty:
+                df_test_table['정답률'] = (df_test_table['test_score'] / df_test_table['test_total'] * 100).astype(int).astype(str) + "%"
+                st.table(df_test_table)
+            else: st.caption("기록된 테스트가 없습니다.")
 
             st.divider()
             c1, c2, c3 = st.columns(3)
             c1.metric("월평균 이행률", f"{int(df_filtered['hw_result_rate'].mean())}%")
             c2.metric("총 수업시간", f"{int(df_filtered['duration'].sum())}분")
-            c3.metric("누적 오답수", f"{int(w_sums.sum())}개")
+            c3.metric("누적 오답수(숙제)", f"{int(w_sums.sum())}개")
     else: st.info("데이터가 없습니다.")
 
 # --- TAB 3: 교재 관리 ---
