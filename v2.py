@@ -448,7 +448,7 @@ with tab4:
                 
                 st.info(f"💬 피드백: {row['feedback']}")
                 
-# --- 수정하기 버튼 클릭 시 모든 데이터(테스트 포함) 복원 ---
+# --- 수정하기 버튼 클릭 시 모든 데이터(테스트 포함) 복원 (StreamlitAPIException 완벽 해결 버전) ---
                 if st.button("📝 수정하기", key=f"edit_log_{row['id']}"):
                     # 1. 기본 정보 복원
                     st.session_state.edit_id = row['id']
@@ -472,48 +472,43 @@ with tab4:
                     st.session_state.edit_t_hard = row.get('test_hard', 0)
                     st.session_state.edit_t_under = row.get('test_under', 0)
                     
-                    # 4. [핵심 추가] 지난 숙제 채점칸 (hw_detail) 복원 및 컴포넌트 메모리 강제 주입
+                    # 4. 지난 숙제 채점칸 (hw_detail) 가변 원본 데이터 백업
                     if row['hw_detail']:
                         c_parts = str(row['hw_detail']).split(" | ")
                         st.session_state.check_rows = len(c_parts)
                         for i, part in enumerate(c_parts):
                             st.session_state[f"edit_c_val_{i}"] = part
-                            # 컴포넌트 key 동기화 (교재 및 범위 입력창 강제 주입)
+                            # [처방] 에러를 유발하는 st.session_state[f"cb_{i}"] = ... 코드를 과감히 제거했습니다.
+                            # 대신 화면 로드 시 씹힘 방지를 위해 cr_i(텍스트 입력창) 전용 임시 메모리만 연동합니다.
                             if ":" in part:
-                                c_book, c_rem = part.split(":", 1)
+                                _, c_rem = part.split(":", 1)
                                 c_range = c_rem.split("(")[0].strip() if "(" in c_rem else c_rem.strip()
-                                st.session_state[f"cb_{i}"] = c_book.strip()
                                 st.session_state[f"cr_{i}"] = c_range
                             else:
                                 st.session_state[f"cr_{i}"] = part.strip()
                     else:
                         st.session_state.check_rows = 1
 
-                    # 5. [핵심 추가] 오늘 수업 진도 (progress) 복원 및 컴포넌트 메모리 강제 주입
+                    # 5. 오늘 수업 진도 (progress) 가변 원본 데이터 백업
                     if row['progress']:
                         p_parts = str(row['progress']).split(" | ")
                         st.session_state.p_rows = len(p_parts)
                         for i, part in enumerate(p_parts):
                             st.session_state[f"edit_p_val_{i}"] = part
-                            # 진도 입력창 key 강제 주입
-                            if ":" in part:
-                                p_book, p_range = part.split(":", 1)
-                                st.session_state[f"pb_{i}"] = p_book.strip()
-                                st.session_state[f"pr_{i}"] = p_range.strip()
+                            # [처방] pb_{i}, pr_{i}를 직접 바꾸지 않고 원본 값만 꽂아두면, 
+                            # 탭 1이 켜질 때 'edit_p_val_i'를 읽어서 자동으로 selectbox의 index를 잡아줍니다.
                     else:
                         st.session_state.p_rows = 1
 
-                    # 6. [핵심 추가] 다음 숙제 분할 칸 (next_hw) 복원
+                    # 6. 다음 숙제 분할 칸 (next_hw) 가변 원본 데이터 백업
                     if row['next_hw']:
                         h_parts = str(row['next_hw']).split(" | ")
                         st.session_state.h_rows = len(h_parts)
                         for i, part in enumerate(h_parts):
                             st.session_state[f"edit_h_val_{i}"] = part
-                            # 다음 숙제 컴포넌트는 TAB 1 상단 전역 파서(Parser)가 
-                            # 'edit_h_val_i'를 감지해서 완벽하게 쪼개어 넣어줄 것입니다.
                     else:
                         st.session_state.h_rows = 1
                     
-                    st.success("모든 가변 입력칸(진도/숙제/채점)을 포함한 전체 정보를 불러왔습니다. 탭 1로 이동하세요!"); time.sleep(0.8); st.rerun()
+                    st.success("모든 가변 입력칸(진도/숙제/채점)을 포함한 전체 정보를 안전하게 로드했습니다. 탭 1로 이동하세요!"); time.sleep(0.8); st.rerun()
     else:
         st.info("로그가 없습니다.")
