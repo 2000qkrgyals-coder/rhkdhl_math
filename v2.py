@@ -448,22 +448,22 @@ with tab4:
                 
                 st.info(f"💬 피드백: {row['feedback']}")
                 
-                # --- 수정하기 버튼 클릭 시 모든 데이터(테스트 포함) 복원 ---
+# --- 수정하기 버튼 클릭 시 모든 데이터(테스트 포함) 복원 ---
                 if st.button("📝 수정하기", key=f"edit_log_{row['id']}"):
-                    # 기본 정보 복원
+                    # 1. 기본 정보 복원
                     st.session_state.edit_id = row['id']
                     st.session_state.edit_date = row['date']
                     st.session_state.edit_session_num = int(row['session_num'])
                     st.session_state.edit_feedback = row['feedback']
                     
-                    # 숙제 오답 데이터 복원
+                    # 2. 숙제 오답 데이터 복원
                     st.session_state.edit_w_total = row['wrong_total']
                     st.session_state.edit_w_calc = row['err_calc']
                     st.session_state.edit_w_concept = row['err_concept']
                     st.session_state.edit_w_hard = row['err_hard']
                     st.session_state.edit_w_under = row['err_understand']
                     
-                    # 데일리 테스트 데이터 복원
+                    # 3. 데일리 테스트 데이터 복원
                     st.session_state.edit_test_name = row.get('test_name', "")
                     st.session_state.edit_test_total = row.get('test_total', 0)
                     st.session_state.edit_test_score = row.get('test_score', 0)
@@ -472,15 +472,48 @@ with tab4:
                     st.session_state.edit_t_hard = row.get('test_hard', 0)
                     st.session_state.edit_t_under = row.get('test_under', 0)
                     
-                    # 가변 행(진도, 숙제, 채점칸) 개수 및 내용 복원
-                    # (여기서 저장된 문자열이 'edit_h_val_i'에 원본 포맷으로 들어가므로 TAB 1이 알아서 다시 쪼갭니다.)
-                    for col, state_key in [('progress', 'p_rows'), ('next_hw', 'h_rows'), ('hw_detail', 'check_rows')]:
-                        parts = str(row[col]).split(" | ")
-                        st.session_state[state_key] = len(parts)
-                        prefix = 'edit_p_val_' if col == 'progress' else ('edit_h_val_' if col == 'next_hw' else 'edit_c_val_')
-                        for i, p in enumerate(parts):
-                            st.session_state[f"{prefix}{i}"] = p
+                    # 4. [핵심 추가] 지난 숙제 채점칸 (hw_detail) 복원 및 컴포넌트 메모리 강제 주입
+                    if row['hw_detail']:
+                        c_parts = str(row['hw_detail']).split(" | ")
+                        st.session_state.check_rows = len(c_parts)
+                        for i, part in enumerate(c_parts):
+                            st.session_state[f"edit_c_val_{i}"] = part
+                            # 컴포넌트 key 동기화 (교재 및 범위 입력창 강제 주입)
+                            if ":" in part:
+                                c_book, c_rem = part.split(":", 1)
+                                c_range = c_rem.split("(")[0].strip() if "(" in c_rem else c_rem.strip()
+                                st.session_state[f"cb_{i}"] = c_book.strip()
+                                st.session_state[f"cr_{i}"] = c_range
+                            else:
+                                st.session_state[f"cr_{i}"] = part.strip()
+                    else:
+                        st.session_state.check_rows = 1
+
+                    # 5. [핵심 추가] 오늘 수업 진도 (progress) 복원 및 컴포넌트 메모리 강제 주입
+                    if row['progress']:
+                        p_parts = str(row['progress']).split(" | ")
+                        st.session_state.p_rows = len(p_parts)
+                        for i, part in enumerate(p_parts):
+                            st.session_state[f"edit_p_val_{i}"] = part
+                            # 진도 입력창 key 강제 주입
+                            if ":" in part:
+                                p_book, p_range = part.split(":", 1)
+                                st.session_state[f"pb_{i}"] = p_book.strip()
+                                st.session_state[f"pr_{i}"] = p_range.strip()
+                    else:
+                        st.session_state.p_rows = 1
+
+                    # 6. [핵심 추가] 다음 숙제 분할 칸 (next_hw) 복원
+                    if row['next_hw']:
+                        h_parts = str(row['next_hw']).split(" | ")
+                        st.session_state.h_rows = len(h_parts)
+                        for i, part in enumerate(h_parts):
+                            st.session_state[f"edit_h_val_{i}"] = part
+                            # 다음 숙제 컴포넌트는 TAB 1 상단 전역 파서(Parser)가 
+                            # 'edit_h_val_i'를 감지해서 완벽하게 쪼개어 넣어줄 것입니다.
+                    else:
+                        st.session_state.h_rows = 1
                     
-                    st.success("테스트 데이터를 포함하여 모든 정보를 불러왔습니다. 탭 1로 이동하세요!"); time.sleep(0.8); st.rerun()
+                    st.success("모든 가변 입력칸(진도/숙제/채점)을 포함한 전체 정보를 불러왔습니다. 탭 1로 이동하세요!"); time.sleep(0.8); st.rerun()
     else:
         st.info("로그가 없습니다.")
