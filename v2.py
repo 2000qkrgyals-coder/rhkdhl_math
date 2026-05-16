@@ -84,76 +84,7 @@ with st.sidebar:
 
 tab1, tab2, tab3, tab4 = st.tabs(["📝 수업 기록/수정", "📊 학습 분석", "📚 교재 관리", "📂 전체 로그"])
 
-# --- TAB 1: 수업 기록 및 수정 ---
-with tab1:
-    # 1. 안전한 숫자 변환 함수
-    def safe_int(val):
-        try:
-            if pd.isna(val) or val == "" or val is None: 
-                return 0
-            return int(float(val))
-        except:
-            return 0
-
-    df_se = load_data("sessions")
-    all_sessions = df_se[df_se['student_id'] == s_id].sort_values(by='session_num', ascending=False) if not df_se.empty else pd.DataFrame()
-
-    is_edit_mode = st.session_state.get('edit_id') is not None
-    col_status, col_reset = st.columns([4, 1]) 
-  
-
-    # =================================================================
-    # [핵심 보완] 루프 밖에서 미리 전역적으로 다음 숙제 데이터를 완벽하게 파싱
-    # =================================================================
-    parsed_h_books = []
-    parsed_h_starts = []
-    parsed_h_ends = []
-    parsed_h_notes = []
-
-    for i in range(st.session_state.get('h_rows', 1)):
-        e_h = st.session_state.get(f"edit_h_val_{i}", "")
-        
-        # 기본값 세팅
-        def_hb = s_books[0] if s_books else "미등록"
-        def_start, def_end, def_note = "", "", ""
-        
-        if ":" in e_h:
-            def_hb = e_h.split(":")[0].strip()
-            rem = e_h.split(":")[1].strip()
-            
-            if "p." in rem:
-                rem = rem.replace("p.", "")
-            
-            # 괄호(비고) 분리
-            if "(" in rem:
-                page_part, note_part = rem.split("(", 1)
-                def_note = note_part.replace(")", "").strip()
-                page_part = page_part.strip()
-            else:
-                page_part = rem.strip()
-            
-            clean_page = page_part.replace("번", "").strip()
-            
-            # 범위 분리
-            if "~" in clean_page:
-                p_split = clean_page.split("~")
-                def_start = p_split[0].strip()
-                def_end = p_split[1].strip()
-                if not def_start.isdigit() and not def_end.isdigit():
-                    def_note = page_part
-                    def_start, def_end = "", ""
-            else:
-                if clean_page.isdigit():
-                    def_start = clean_page
-                else:
-                    def_note = page_part
-                    
-        parsed_h_books.append(def_hb)
-        parsed_h_starts.append(def_start)
-        parsed_h_ends.append(def_end)
-        parsed_h_notes.append(def_note)
-    # =================================================================
-# --- TAB 1: 수업 기록 및 수정 (Key 갱신형 데이터 복원 반영) ---
+# --- TAB 1: 수업 기록 및 수정 (시간 + 문항수 완벽 복원 버전) ---
 with tab1:
     def safe_int(val):
         try:
@@ -167,16 +98,17 @@ with tab1:
     else:
         all_sessions = pd.DataFrame()
 
+    # 수정 모드 체크 및 고유 접미사 생성
     is_edit_mode = st.session_state.get('edit_id') is not None
-    edit_suffix = f"_edit_{st.session_state.edit_id}" if is_edit_mode else "" # 수정 모드 시 고유 키 생성 장치 ⭐
+    edit_suffix = f"_edit_{st.session_state.edit_id}" if is_edit_mode else ""
     
     col_status, col_reset = st.columns([4, 1])
     if is_edit_mode: 
         col_status.warning(f"🔄 **{st.session_state.edit_session_num}회차 수정 중**")
-    if col_reset.button("🔄 내용 초기화"): 
+    if col_reset.button("🔄 내용 초기화", key="btn_full_reset"): 
         full_reset()
 
-    # --- [전역 파서] 가변 행 데이터 선제적 분리 처리 ---
+    # --- [전역 파서] 다음 숙제(next_hw) 가변 행 데이터 분리 처리 ---
     parsed_h_books, parsed_h_starts, parsed_h_ends, parsed_h_notes = [], [], [], []
     for i in range(st.session_state.get('h_rows', 1)):
         e_h = st.session_state.get(f"edit_h_val_{i}", "")
@@ -202,12 +134,12 @@ with tab1:
                 else: def_note = page_part
         parsed_h_books.append(def_hb); parsed_h_starts.append(def_start); parsed_h_ends.append(def_end); parsed_h_notes.append(def_note)
 
-    # --- 1. 숙제 채점 섹션 ---
+    # --- 1. 지난 숙제 채점 섹션 ---
     st.write("### ✍️ 지난 숙제 채점")
     if not all_sessions.empty:
         hw_options = {f"[{int(row['session_num'])}회차] {row['date']} : {row['next_hw']}": row['next_hw'] for _, row in all_sessions.iterrows()}
         selected_label = st.selectbox("📥 이전 숙제 불러오기", ["선택 안 함"] + list(hw_options.keys()))
-        if selected_label != "선택 안 함" and st.button("적용하기"):
+        if selected_label != "선택 안 함" and st.button("적용하기", key="btn_apply_old_hw"):
             actual_hw = hw_options[selected_label]
             hw_parts = actual_hw.split(" | ")
             st.session_state.check_rows = len(hw_parts)
@@ -224,16 +156,38 @@ with tab1:
         for i in range(st.session_state.check_rows):
             c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
             e_val = st.session_state.get(f"edit_c_val_{i}", "")
-            def_book = e_val.split(":")[0] if ":" in e_val else (s_books[0] if s_books else "미등록")
-            raw_range = e_val.split(":")[1].strip() if ":" in e_val else ""
-            def_range = raw_range.split("(")[0].strip() if "(" in raw_range else raw_range
             
-            # key 뒤에 edit_suffix를 붙여 수정 모드 진입 시 강제로 새로 그리도록 지시 ⭐
+            # 초기화 기본값 세팅
+            def_book = s_books[0] if s_books else "미등록"
+            def_range = ""
+            def_total_q = 0
+            def_done_q = 0
+            
+            # 데이터 분리 파서 (예: "개념원리: p.10~p.20 (15/20)") ⭐
+            if ":" in e_val:
+                def_book = e_val.split(":")[0].strip()
+                rem_part = e_val.split(":")[1].strip() # "p.10~p.20 (15/20)"
+                
+                if "(" in rem_part:
+                    def_range = rem_part.split("(")[0].strip() # "p.10~p.20"
+                    score_part = rem_part.split("(")[1].replace(")", "").strip() # "15/20"
+                    if "/" in score_part:
+                        try:
+                            def_done_q = int(score_part.split("/")[0].strip()) # 15
+                            def_total_q = int(score_part.split("/")[1].strip()) # 20
+                        except:
+                            def_done_q, def_total_q = 0, 0
+                else:
+                    def_range = rem_part
+            
+            # UI 컴포넌트에 파싱된 데이터 주입 (value 매핑 및 고유 키 갱신)
             cb = c1.selectbox(f"교재 {i+1}", s_books, index=s_books.index(def_book) if def_book in s_books else 0, key=f"cb_{i}{edit_suffix}")
             cr = c2.text_input(f"범위 {i+1}", value=def_range, key=f"cr_{i}{edit_suffix}")
-            ct = c3.number_input(f"총", min_value=0, key=f"ct_{i}{edit_suffix}")
-            cd = c4.number_input(f"푼", min_value=0, key=f"cd_{i}{edit_suffix}")
-            if cb and cr: check_list.append(f"{cb}: {cr} ({cd}/{ct})")
+            ct = c3.number_input(f"총", min_value=0, value=def_total_q, key=f"ct_{i}{edit_suffix}") # 총 문항수 연동 ⭐
+            cd = c4.number_input(f"푼", min_value=0, value=def_done_q, key=f"cd_{i}{edit_suffix}")  # 푼 문항수 연동 ⭐
+            
+            if cb and cr: 
+                check_list.append(f"{cb}: {cr} ({cd}/{ct})")
             acc_total += ct; acc_done += cd
         
         final_rate = int((acc_done / acc_total * 100)) if acc_total > 0 else 100
@@ -250,8 +204,8 @@ with tab1:
         final_rate, w_total, w_calc, w_concept, w_hard, w_under = 100, 0, 0, 0, 0, 0
 
     c_c1, c_c2 = st.columns(2)
-    if c_c1.button("➕ 채점칸 추가"): st.session_state.check_rows += 1; st.rerun()
-    if c_c2.button("➖ 채점칸 제거"): st.session_state.check_rows = max(1, st.session_state.check_rows-1); st.rerun()
+    if c_c1.button("➕ 채점칸 추가", key="btn_add_check"): st.session_state.check_rows += 1; st.rerun()
+    if c_c2.button("➖ 채점칸 제거", key="btn_sub_check"): st.session_state.check_rows = max(1, st.session_state.check_rows-1); st.rerun()
 
     # --- 2. 데일리 테스트 섹션 ---
     st.divider()
@@ -284,9 +238,27 @@ with tab1:
         next_s = int(all_sessions['session_num'].max() + 1) if not all_sessions.empty else 1
         sess_num = c_n.number_input("회차", value=int(st.session_state.get('edit_session_num', next_s)), key=f"sess_num{edit_suffix}")
         
+        # --- [시간 복원 철벽 파서 적용 장치] --- ⭐
         c_t1, c_t2 = st.columns(2)
-        start_t = c_t1.time_input("시작", dt_time(14, 0), key=f"start_t{edit_suffix}")
-        end_t = c_t2.time_input("종료", dt_time(16, 0), key=f"end_t{edit_suffix}")
+        def_start_t = dt_time(14, 0)
+        def_end_t = dt_time(16, 0)
+        
+        if is_edit_mode:
+            try:
+                # "14:30:00" 혹은 "14:30" 등 다양한 시간 구조 차단 분리 시도
+                s_raw = str(st.session_state.get('edit_start_time', "14:00")).strip()
+                e_raw = str(st.session_state.get('edit_end_time', "16:00")).strip()
+                
+                s_parts = s_raw.split(":")
+                e_parts = e_raw.split(":")
+                
+                if len(s_parts) >= 2: def_start_t = dt_time(int(s_parts[0]), int(s_parts[1]))
+                if len(e_parts) >= 2: def_end_t = dt_time(int(e_parts[0]), int(e_parts[1]))
+            except Exception as e:
+                pass # 에러 방지용 안전 장치
+
+        start_t = c_t1.time_input("시작", def_start_t, key=f"start_t{edit_suffix}")
+        end_t = c_t2.time_input("종료", def_end_t, key=f"end_t{edit_suffix}")
 
         p_list, h_list = [], []
         st.write("📖 진도")
@@ -345,10 +317,10 @@ with tab1:
             st.success("저장되었습니다!"); time.sleep(1); full_reset()
 
     col_p1, col_p2, col_h1, col_h2 = st.columns(4)
-    if col_p1.button("➕ 진도칸+"): st.session_state.p_rows += 1; st.rerun()
-    if col_p2.button("➖ 진도칸-"): st.session_state.p_rows = max(1, st.session_state.p_rows-1); st.rerun()
-    if col_h1.button("➕ 숙제칸+"): st.session_state.h_rows += 1; st.rerun()
-    if col_h2.button("➖ 숙제칸-"): st.session_state.h_rows = max(1, st.session_state.h_rows-1); st.rerun()
+    if col_p1.button("➕ 진도칸+", key="btn_add_progress"): st.session_state.p_rows += 1; st.rerun()
+    if col_p2.button("➖ 진도칸-", key="btn_sub_progress"): st.session_state.p_rows = max(1, st.session_state.p_rows-1); st.rerun()
+    if col_h1.button("➕ 숙제칸+", key="btn_add_hw"): st.session_state.h_rows += 1; st.rerun()
+    if col_h2.button("➖ 숙제칸-", key="btn_sub_hw"): st.session_state.h_rows = max(1, st.session_state.h_rows-1); st.rerun()
 # --- TAB 2: 학습 분석 ---
 with tab2:
     st.subheader("📊 월별 상세 학습 통계")
