@@ -257,8 +257,28 @@ with tab4:
                 with col_info2:
                     st.markdown("**📖 수업 진도**")
                     st.text(row['progress'] if row['progress'] else "기록 없음")
+                    
                     st.markdown("**🚀 다음 숙제**")
-                    st.text(row['next_hw'] if row['next_hw'] else "숙제 없음")
+                    if row['next_hw'] and row['next_hw'] != "숙제 없음":
+                        # 로그 화면에서 숙제를 더 가독성 있게 쪼개서 보여주는 뷰어 로직
+                        raw_hws = str(row['next_hw']).split(" | ")
+                        for idx, hw_item in enumerate(raw_hws):
+                            if ":" in hw_item:
+                                b_title, b_rem = hw_item.split(":", 1)
+                                b_title = b_title.strip()
+                                b_rem = b_rem.strip()
+                                
+                                # 코멘트(괄호) 분리하여 가독성 강화
+                                if "(" in b_rem:
+                                    b_range, b_note = b_rem.split("(", 1)
+                                    b_note = b_note.replace(")", "").strip()
+                                    st.markdown(f"{idx+1}. **{b_title}** : {b_range.strip()} 💡 *({b_note})*")
+                                else:
+                                    st.markdown(f"{idx+1}. **{b_title}** : {b_rem}")
+                            else:
+                                st.markdown(f"{idx+1}. {hw_item}")
+                    else:
+                        st.caption("숙제 없음")
                 
                 st.info(f"💬 피드백: {row['feedback']}")
                 
@@ -287,6 +307,7 @@ with tab4:
                     st.session_state.edit_t_under = row.get('test_under', 0)
                     
                     # 가변 행(진도, 숙제, 채점칸) 개수 및 내용 복원
+                    # (여기서 저장된 문자열이 'edit_h_val_i'에 원본 포맷으로 들어가므로 TAB 1이 알아서 다시 쪼갭니다.)
                     for col, state_key in [('progress', 'p_rows'), ('next_hw', 'h_rows'), ('hw_detail', 'check_rows')]:
                         parts = str(row[col]).split(" | ")
                         st.session_state[state_key] = len(parts)
