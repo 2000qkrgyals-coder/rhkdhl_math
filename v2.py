@@ -99,9 +99,7 @@ with tab1:
     all_sessions = df_se[df_se['student_id'] == s_id].sort_values(by='session_num', ascending=False) if not df_se.empty else pd.DataFrame()
 
     is_edit_mode = st.session_state.get('edit_id') is not None
-    col_status, col_reset = st.columns([4, 1])
-    if is_edit_mode: 
-        col_status.warning(f"🔄 **{st.session_state.edit_session_num}회차 수정 중**")
+    col_status, col_reset = st.columns([4, 1]) 
   
 
     # =================================================================
