@@ -97,7 +97,7 @@ def get_date_with_weekday(date_val):
         return str(date_val)
 
 tab1, tab2, tab3, tab4 = st.tabs(["📝 수업 기록/수정", "📊 학습 분석", "📚 교재 관리", "📂 전체 로그"])
-# --- TAB 1: 수업 기록 및 수정 (시간 + 문항수 완벽 복원 버전) ---
+# --- TAB 1: 수업 기록 및 수정 (무한 로딩 방지 콜백 버전) ---
 with tab1:
     def safe_int(val):
         try:
@@ -159,12 +159,36 @@ with tab1:
             for _, row in recent_sessions.iterrows()
         }
         
-        # 3. 셀렉트박스 출력 (연속 선택 버그 방지를 위해 세션 key 부여)
+        # 💡 [무한 로딩 차단 전용 콜백 함수 선언]
+        def apply_old_homework_callback():
+            target_label = st.session_state.get("sb_apply_old_hw_track")
+            if target_label and target_label != "선택 안 함":
+                actual_hw = hw_options[target_label]
+                
+                # 문장 분리
+                hw_parts = actual_hw.split(" | ") if " | " in actual_hw else [actual_hw]
+                    
+                # 행 개수 및 데이터 즉시 주입 (첫 칸 유실 차단)
+                st.session_state.check_rows = len(hw_parts)
+                st.session_state.h_rows = len(hw_parts)
+                
+                for i, part in enumerate(hw_parts): 
+                    st.session_state[f"edit_c_val_{i}"] = part.strip()
+                    st.session_state[f"edit_h_val_{i}"] = part.strip()
+                
+                # 불러오기가 끝나면 셀렉트박스를 자동으로 "선택 안 함"으로 리셋
+                st.session_state["sb_apply_old_hw_track"] = "선택 안 함"
+
+        # 셀렉트박스 출력
         selected_label = st.selectbox(
             "📥 이전 숙제 불러오기", 
             ["선택 안 함"] + list(hw_options.keys()),
             key="sb_apply_old_hw_track"
         )
+        
+        # 💡 버튼 클릭 시 'on_click' 콜백 함수가 실행되도록 구조 단순화 (무한루프 원천 차단)
+        if selected_label != "선택 안 함":
+            st.button("적용하기", key="btn_apply_old_hw", on_click=apply_old_homework_callback)
         
         # 적용하기 버튼 클릭 시 처리
         if selected_label != "선택 안 함" and st.button("적용하기", key="btn_apply_old_hw"):
