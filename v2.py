@@ -150,26 +150,47 @@ with tab1:
 
     # --- 1. 지난 숙제 채점 섹션 ---
     st.write("### ✍️ 지난 숙제 채점")
-    if not all_sessions.empty:
+  if not all_sessions.empty:
+        # 최근 2회차만 정렬하여 가져오기
         recent_sessions = all_sessions.sort_values(by=['date', 'session_num'], ascending=False).head(2)
+        
         hw_options = {
             f"[{int(row['session_num'])}회차] {get_date_with_weekday(row['date'])} : {row['next_hw']}": row['next_hw'] 
             for _, row in recent_sessions.iterrows()
         }
         
-        # 3. 셀렉트박스 출력
+        # 3. 셀렉트박스 출력 (연속 선택 버그 방지를 위해 세션 key 부여)
         selected_label = st.selectbox(
             "📥 이전 숙제 불러오기", 
-            ["선택 안 함"] + list(hw_options.keys())
+            ["선택 안 함"] + list(hw_options.keys()),
+            key="sb_apply_old_hw_track"
         )
+        
+        # 적용하기 버튼 클릭 시 처리
         if selected_label != "선택 안 함" and st.button("적용하기", key="btn_apply_old_hw"):
             actual_hw = hw_options[selected_label]
-            hw_parts = actual_hw.split(" | ")
+            
+            # 문장 분리
+            if " | " in actual_hw:
+                hw_parts = actual_hw.split(" | ")
+            else:
+                hw_parts = [actual_hw]
+                
+            # 행 개수 즉시 갱신
             st.session_state.check_rows = len(hw_parts)
             st.session_state.h_rows = len(hw_parts)
+            
+            # ⭐ [핵심 보완 1] 첫 번째 칸 유실 방지 및 세션 강제 주입
             for i, part in enumerate(hw_parts): 
-                st.session_state[f"edit_c_val_{i}"] = part
-                st.session_state[f"edit_h_val_{i}"] = part
+                st.session_state[f"edit_c_val_{i}"] = part.strip()
+                st.session_state[f"edit_h_val_{i}"] = part.strip()
+            
+            # ⭐ [핵심 보완 2] 연속 불러오기 가능하도록 셀렉트박스 강제 초기화 장치
+            # 다음 렌더링 때 "선택 안 함"이 기본값으로 물리게 만듭니다.
+            st.session_state["sb_apply_old_hw_track"] = "선택 안 함"
+            
+            st.success("선택한 숙제 데이터가 성공적으로 반영되었습니다!")
+            time.sleep(0.4)
             st.rerun()
 
     no_hw = st.checkbox("✅ 숙제 없음", key="no_hw_check", value=st.session_state.get('edit_no_hw', False))
