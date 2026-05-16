@@ -188,7 +188,7 @@ with tab1:
         
         # 💡 버튼 클릭 시 'on_click' 콜백 함수가 실행되도록 구조 단순화 (무한루프 원천 차단)
        if selected_label != "선택 안 함":
-      st.button("적용하기", key="btn_apply_old_hw_unique_callback", on_click=apply_old_homework_callback)
+          st.button("적용하기", key="btn_apply_old_hw_unique_callback", on_click=apply_old_homework_callback)
         
         # 적용하기 버튼 클릭 시 처리
         if selected_label != "선택 안 함" and st.button("적용하기", key="btn_apply_old_hw"):
