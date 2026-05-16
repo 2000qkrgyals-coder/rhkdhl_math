@@ -475,12 +475,16 @@ with tab4:
                 st.info(f"💬 피드백: {row['feedback']}")
                 
 # --- 수정하기 버튼 클릭 시 모든 데이터(테스트 포함) 복원 (안전성 최적화 버전) ---
-                if st.button("📝 수정하기", key=f"edit_log_{row['id']}"):
+               if st.button("📝 수정하기", key=f"edit_log_{row['id']}"):
                     # 1. 기본 정보 및 피드백 복원
                     st.session_state.edit_id = row['id']
                     st.session_state.edit_date = row['date']
                     st.session_state.edit_session_num = int(row['session_num'])
                     st.session_state.edit_feedback = row['feedback']
+                    
+                    # [여기에 추가] 시간 데이터 문자열 복원 ⭐
+                    st.session_state.edit_start_time = row.get('start_time', "14:00")
+                    st.session_state.edit_end_time = row.get('end_time', "16:00")
                     
                     # 2. 숙제 오답 데이터 복원
                     st.session_state.edit_w_total = row['wrong_total']
