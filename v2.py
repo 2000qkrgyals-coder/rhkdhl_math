@@ -69,7 +69,7 @@ def full_reset():
 
 # --- [3. 사이드바 및 학생 선택] ---
 with st.sidebar:
-    st.title("📑 Tutor Pro v11.0")
+    st.title("📑 Tutor Management")
     df_st = load_data("students")
     if not df_st.empty:
         sel_name = st.selectbox("학생 선택", df_st['name'], key="main_student_selector")
