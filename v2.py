@@ -99,6 +99,7 @@ def get_date_with_weekday(date_val):
 tab1, tab2, tab3, tab4 = st.tabs(["📝 수업 기록/수정", "📊 학습 분석", "📚 교재 관리", "📂 전체 로그"])
 
 # --- TAB 1: 수업 기록 및 수정 (시간 + 문항수 완벽 복원 버전) ---
+# --- TAB 1: 수업 기록 및 수정 (시간 + 문항수 완벽 복원 버전) ---
 with tab1:
     def safe_int(val):
         try:
@@ -118,7 +119,7 @@ with tab1:
     
     col_status, col_reset = st.columns([4, 1])
     if is_edit_mode: 
-        col_status.warning(f"🔄 **{st.session_state.edit_session_num}회차 수정 중**")
+        col_status.warning(f"🔄 **{int(st.session_state.edit_session_num)}회차 수정 중**")
     if col_reset.button("🔄 내용 초기화", key="btn_full_reset"): 
         full_reset()
 
@@ -150,7 +151,8 @@ with tab1:
 
     # --- 1. 지난 숙제 채점 섹션 ---
     st.write("### ✍️ 지난 숙제 채점")
-      if not all_sessions.empty:
+    
+    if not all_sessions.empty:
         # 최근 2회차만 정렬하여 가져오기
         recent_sessions = all_sessions.sort_values(by=['date', 'session_num'], ascending=False).head(2)
         
