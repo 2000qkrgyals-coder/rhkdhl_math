@@ -84,79 +84,191 @@ with st.sidebar:
 
 tab1, tab2, tab3, tab4 = st.tabs(["📝 수업 기록/수정", "📊 학습 분석", "📚 교재 관리", "📂 전체 로그"])
 
-# --- TAB 4: 전체 로그 ---
-with tab4:
-    st.subheader("📂 수업 로그 조회")
+# --- TAB 1: 수업 기록 및 수정 ---
+with tab1:
+    # 안전한 숫자 변환 함수 (데이터 타입 에러 방지)
+    def safe_int(val):
+        try:
+            if pd.isna(val) or val == "" or val is None: 
+                return 0
+            return int(float(val))
+        except:
+            return 0
+
+    df_se = load_data("sessions")
+    all_sessions = df_se[df_se['student_id'] == s_id].sort_values(by='session_num', ascending=False) if not df_se.empty else pd.DataFrame()
+
+    is_edit_mode = st.session_state.get('edit_id') is not None
+    col_status, col_reset = st.columns([4, 1])
+    if is_edit_mode: 
+        col_status.warning(f"🔄 **{st.session_state.edit_session_num}회차 수정 중**")
+    if col_reset.button("🔄 내용 초기화"): 
+        full_reset()
+
+    # --- 1. 숙제 채점 섹션 ---
+    st.write("### ✍️ 지난 숙제 채점")
     if not all_sessions.empty:
-        all_sessions['date_dt'] = pd.to_datetime(all_sessions['date'])
-        all_sessions['year_month'] = all_sessions['date_dt'].dt.strftime('%Y-%m')
-        log_filter = st.selectbox("📅 조회할 월 선택", ["전체 보기"] + sorted(all_sessions['year_month'].unique(), reverse=True), key="log_month_filter")
-        display_df = all_sessions if log_filter == "전체 보기" else all_sessions[all_sessions['year_month'] == log_filter]
+        hw_options = {f"[{int(row['session_num'])}회차] {row['date']} : {row['next_hw']}": row['next_hw'] for _, row in all_sessions.iterrows()}
+        selected_label = st.selectbox("📥 이전 숙제 불러오기", ["선택 안 함"] + list(hw_options.keys()))
+        if selected_label != "선택 안 함" and st.button("적용하기"):
+            actual_hw = hw_options[selected_label]
+            hw_parts = actual_hw.split(" | ")
+            st.session_state.check_rows = len(hw_parts)
+            for i, part in enumerate(hw_parts): 
+                st.session_state[f"edit_c_val_{i}"] = part
+            st.rerun()
 
-        for _, row in display_df.iterrows():
-            # 제목에 테스트 실시 여부 표시
-            test_tag = f" | 📝 {row['test_name']}" if row.get('test_total', 0) > 0 else ""
-            title = f"📌 {int(row['session_num'])}회차 | {row['date']} | 이행 {int(row['hw_result_rate'])}%{test_tag}"
+    no_hw = st.checkbox("✅ 숙제 없음", key="no_hw_check", value=st.session_state.get('edit_no_hw', False))
+    check_list, acc_total, acc_done = [], 0, 0
+    
+    if not no_hw:
+        for i in range(st.session_state.check_rows):
+            c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
+            e_val = st.session_state.get(f"edit_c_val_{i}", "")
+            def_book = e_val.split(":")[0] if ":" in e_val else (s_books[0] if s_books else "미등록")
             
-            with st.expander(title):
-                col_info1, col_info2 = st.columns(2)
-                
-                with col_info1:
-                    st.markdown("**✅ 숙제 및 오답**")
-                    st.text(row['hw_detail'] if row['hw_detail'] else "기록 없음")
-                    if row['wrong_total'] > 0:
-                        st.caption(f"📍 숙제오답: 총 {int(row['wrong_total'])}개 (계산:{int(row['err_calc'])} / 개념:{int(row['err_concept'])} / 난이도:{int(row['err_hard'])} / 이해:{int(row['err_understand'])})")
-                    
-                    st.markdown("**📝 데일리 테스트**")
-                    if row.get('test_total', 0) > 0:
-                        st.write(f" 결과: **{int(row['test_score'])} / {int(row['test_total'])}**")
-                        st.caption(f"📍 테스트오답: 계산:{int(row['test_calc'])} / 개념:{int(row['test_concept'])} / 난이도:{int(row['test_hard'])} / 이해:{int(row['test_under'])}")
-                    else:
-                        st.caption("실시하지 않음")
+            # 불러온 데이터에서 코멘트 (괄호 내용) 부분을 제외하고 순수 페이지 범위만 추출
+            raw_range = e_val.split(":")[1].strip() if ":" in e_val else ""
+            def_range = raw_range.split("(")[0].strip() if "(" in raw_range else raw_range
+            
+            cb = c1.selectbox(f"교재 {i+1}", s_books, index=s_books.index(def_book) if def_book in s_books else 0, key=f"cb_{i}")
+            cr = c2.text_input(f"범위 {i+1}", value=def_range, key=f"cr_{i}")
+            ct = c3.number_input(f"총", min_value=0, key=f"ct_{i}")
+            cd = c4.number_input(f"푼", min_value=0, key=f"cd_{i}")
+            if cb and cr: check_list.append(f"{cb}: {cr} ({cd}/{ct})")
+            acc_total += ct; acc_done += cd
+        
+        final_rate = int((acc_done / acc_total * 100)) if acc_total > 0 else 100
+        st.info(f"📊 **이행률: {final_rate}%** (총 {acc_total}문항 중 {acc_done}문항 완료)")
 
-                with col_info2:
-                    st.markdown("**📖 수업 진도**")
-                    st.text(row['progress'] if row['progress'] else "기록 없음")
-                    st.markdown("**🚀 다음 숙제**")
-                    st.text(row['next_hw'] if row['next_hw'] else "숙제 없음")
-                
-                st.info(f"💬 피드백: {row['feedback']}")
-                
-                # --- 수정하기 버튼 클릭 시 모든 데이터(테스트 포함) 복원 ---
-                if st.button("📝 수정하기", key=f"edit_log_{row['id']}"):
-                    # 기본 정보 복원
-                    st.session_state.edit_id = row['id']
-                    st.session_state.edit_date = row['date']
-                    st.session_state.edit_session_num = int(row['session_num'])
-                    st.session_state.edit_feedback = row['feedback']
-                    
-                    # 숙제 오답 데이터 복원
-                    st.session_state.edit_w_total = row['wrong_total']
-                    st.session_state.edit_w_calc = row['err_calc']
-                    st.session_state.edit_w_concept = row['err_concept']
-                    st.session_state.edit_w_hard = row['err_hard']
-                    st.session_state.edit_w_under = row['err_understand']
-                    
-                    # 데일리 테스트 데이터 복원
-                    st.session_state.edit_test_name = row.get('test_name', "")
-                    st.session_state.edit_test_total = row.get('test_total', 0)
-                    st.session_state.edit_test_score = row.get('test_score', 0)
-                    st.session_state.edit_t_calc = row.get('test_calc', 0)
-                    st.session_state.edit_t_concept = row.get('test_concept', 0)
-                    st.session_state.edit_t_hard = row.get('test_hard', 0)
-                    st.session_state.edit_t_under = row.get('test_under', 0)
-                    
-                    # 가변 행(진도, 숙제, 채점칸) 개수 및 내용 복원
-                    for col, state_key in [('progress', 'p_rows'), ('next_hw', 'h_rows'), ('hw_detail', 'check_rows')]:
-                        parts = str(row[col]).split(" | ")
-                        st.session_state[state_key] = len(parts)
-                        prefix = 'edit_p_val_' if col == 'progress' else ('edit_h_val_' if col == 'next_hw' else 'edit_c_val_')
-                        for i, p in enumerate(parts):
-                            st.session_state[f"{prefix}{i}"] = p
-                    
-                    st.success("테스트 데이터를 포함하여 모든 정보를 불러왔습니다. 탭 1로 이동하세요!"); time.sleep(0.8); st.rerun()
+        st.write("#### ❌ 숙제 오답 분석")
+        w_total = st.number_input("전체 숙제 오답 개수", min_value=0, value=safe_int(st.session_state.get('edit_w_total', 0)))
+        wc1, wc2, wc3, wc4 = st.columns(4)
+        w_calc = wc1.number_input("계산실수", min_value=0, value=safe_int(st.session_state.get('edit_w_calc', 0)))
+        w_concept = wc2.number_input("개념부족", min_value=0, value=safe_int(st.session_state.get('edit_w_concept', 0)))
+        w_hard = wc3.number_input("고난도", min_value=0, value=safe_int(st.session_state.get('edit_w_hard', 0)))
+        w_under = wc4.number_input("문제이해", min_value=0, value=safe_int(st.session_state.get('edit_w_under', 0)))
     else:
-        st.info("로그가 없습니다.")
+        final_rate, w_total, w_calc, w_concept, w_hard, w_under = 100, 0, 0, 0, 0, 0
+
+    c_c1, c_c2 = st.columns(2)
+    if c_c1.button("➕ 채점칸 추가"): st.session_state.check_rows += 1; st.rerun()
+    if c_c2.button("➖ 채점칸 제거"): st.session_state.check_rows = max(1, st.session_state.check_rows-1); st.rerun()
+
+    # --- 2. 데일리 테스트 섹션 ---
+    st.divider()
+    st.write("### 📝 데일리 테스트 결과")
+    
+    edit_t_total = safe_int(st.session_state.get('edit_test_total', 0))
+    use_test = st.checkbox("오늘 데일리 테스트 실시", value=(edit_t_total > 0))
+    
+    if use_test:
+        tc1, tc2, tc3 = st.columns([2, 1, 1])
+        t_name = tc1.text_input("테스트 명", value=st.session_state.get('edit_test_name', "단원평가"), key="t_name")
+        t_total = tc2.number_input("T.총 문항", min_value=0, value=safe_int(st.session_state.get('edit_test_total', 0)), key="t_total")
+        t_score = tc3.number_input("T.맞은 개수", min_value=0, value=safe_int(st.session_state.get('edit_test_score', 0)), key="t_score")
+        
+        st.write("❌ 테스트 오답 분석")
+        twc1, twc2, twc3, twc4 = st.columns(4)
+        t_calc = twc1.number_input("T.계산실수", min_value=0, value=safe_int(st.session_state.get('edit_t_calc', 0)), key="t_calc")
+        t_concept = twc2.number_input("T.개념부족", min_value=0, value=safe_int(st.session_state.get('edit_t_concept', 0)), key="t_concept")
+        t_hard = twc3.number_input("T.고난도", min_value=0, value=safe_int(st.session_state.get('edit_t_hard', 0)), key="t_hard")
+        t_under = twc4.number_input("T.문제이해", min_value=0, value=safe_int(st.session_state.get('edit_t_under', 0)), key="t_under")
+    else:
+        t_name, t_total, t_score, t_calc, t_concept, t_hard, t_under = "", 0, 0, 0, 0, 0, 0
+
+    st.divider()
+
+    # --- 3. 오늘 수업 정보 입력 폼 ---
+    with st.form("lesson_form"):
+        st.write("### 📖 오늘 수업 정보")
+        c_d, c_n = st.columns(2)
+        d_val = datetime.strptime(st.session_state.edit_date, "%Y-%m-%d") if is_edit_mode else datetime.now()
+        date_in = c_d.date_input("날짜", d_val)
+        next_s = int(all_sessions['session_num'].max() + 1) if not all_sessions.empty else 1
+        sess_num = c_n.number_input("회차", value=int(st.session_state.get('edit_session_num', next_s)))
+        
+        c_t1, c_t2 = st.columns(2)
+        start_t = c_t1.time_input("시작", dt_time(14, 0)); end_t = c_t2.time_input("종료", dt_time(16, 0))
+
+        p_list, h_list = [], []
+        st.write("📖 진도")
+        for i in range(st.session_state.p_rows):
+            cc1, cc2 = st.columns([1, 2])
+            e_p = st.session_state.get(f"edit_p_val_{i}", "")
+            pb = cc1.selectbox(f"진도 {i+1}", s_books, index=s_books.index(e_p.split(":")[0]) if ":" in e_p and e_p.split(":")[0] in s_books else 0, key=f"pb_{i}")
+            pr = cc2.text_input(f"진도 범위", value=e_p.split(":")[1].strip() if ":" in e_p else "", key=f"pr_{i}")
+            if pb and pr: p_list.append(f"{pb}: {pr}")
+        
+        # --- [개선된 4단 분리형] 다음 숙제 입력 루프 ---
+        st.write("📝 다음 숙제")
+        for i in range(st.session_state.h_rows):
+            st.markdown(f"**📍 숙제 {i+1}**")
+            hc1, hc2, hc3, hc4 = st.columns([2, 1, 1, 3])
+            
+            e_h = st.session_state.get(f"edit_h_val_{i}", "")
+            def_hb = s_books[0] if s_books else "미등록"
+            def_start, def_end, def_note = "", "", ""
+            
+            # 조립되어 있던 기존 문자열을 스마트하게 다시 쪼개서 각 칸에 배치
+            if ":" in e_h:
+                def_hb = e_h.split(":")[0].strip()
+                rem = e_h.split(":")[1].strip()
+                if "p." in rem:
+                    rem = rem.replace("p.", "")
+                
+                # 비고 코멘트 분리: "12~18 (홀수만)" -> "12~18", "홀수만"
+                if "(" in rem:
+                    page_part, note_part = rem.split("(", 1)
+                    def_note = note_part.replace(")", "").strip()
+                    page_part = page_part.strip()
+                else:
+                    page_part = rem.strip()
+                
+                # 시작 및 끝 페이지 분리: "12~18" -> "12", "18"
+                if "~" in page_part:
+                    p_split = page_part.split("~")
+                    def_start = p_split[0].strip()
+                    def_end = p_split[1].strip()
+                else:
+                    def_start = page_part
+            
+            hb = hc1.selectbox(f"교재", s_books, index=s_books.index(def_hb) if def_hb in s_books else 0, key=f"hb_{i}")
+            h_start = hc2.text_input(f"시작(p)", value=def_start, key=f"h_start_{i}", placeholder="12")
+            h_end = hc3.text_input(f"끝(p)", value=def_end, key=f"h_end_{i}", placeholder="18")
+            h_note = hc4.text_input(f"비고 / 코멘트", value=def_note, key=f"h_note_{i}", placeholder="예: 홀수만 / 20번~35번 제외")
+            
+            # 입력 데이터가 하나라도 있으면 하나의 규격화된 문자열로 통합 조립
+            if hb and (h_start or h_end or h_note):
+                page_str = f"p.{h_start}" if h_start else "p."
+                if h_end: 
+                    page_str += f"~{h_end}"
+                note_str = f" ({h_note})" if h_note else ""
+                h_list.append(f"{hb}: {page_str}{note_str}")
+
+        fback = st.text_area("피드백", value=st.session_state.get('edit_feedback', ""), key="fb_text")
+        
+        if st.form_submit_button("💾 저장하기"):
+            dur = (datetime.combine(date_in, end_t) - datetime.combine(date_in, start_t)).seconds // 60
+            new_id = int(st.session_state.edit_id) if is_edit_mode else (int(df_se['id'].max()+1) if not df_se.empty else 1)
+            new_row = {
+                'id': new_id, 'student_id': s_id, 'date': str(date_in), 'session_num': int(sess_num),
+                'start_time': start_t.strftime("%H:%M"), 'end_time': end_t.strftime("%H:%M"), 'duration': int(dur),
+                'hw_detail': " | ".join(check_list), 'progress': " | ".join(p_list),
+                'hw_result_rate': int(final_rate), 'next_hw': " | ".join(h_list), 'feedback': fback,
+                'wrong_total': w_total, 'err_calc': w_calc, 'err_concept': w_concept, 'err_hard': w_hard, 'err_understand': w_under,
+                'test_name': t_name, 'test_total': t_total, 'test_score': t_score,
+                'test_calc': t_calc, 'test_concept': t_concept, 'test_hard': t_hard, 'test_under': t_under
+            }
+            if is_edit_mode: df_se = df_se[df_se['id'] != st.session_state.edit_id]
+            save_data(pd.concat([df_se, pd.DataFrame([new_row])], ignore_index=True), "sessions")
+            st.success("저장되었습니다!"); time.sleep(1); full_reset()
+
+    col_p1, col_p2, col_h1, col_h2 = st.columns(4)
+    if col_p1.button("➕ 진도칸+"): st.session_state.p_rows += 1; st.rerun()
+    if col_p2.button("➖ 진도칸-"): st.session_state.p_rows = max(1, st.session_state.p_rows-1); st.rerun()
+    if col_h1.button("➕ 숙제칸+"): st.session_state.h_rows += 1; st.rerun()
+    if col_h2.button("➖ 숙제칸-"): st.session_state.h_rows = max(1, st.session_state.h_rows-1); st.rerun()
 # --- TAB 2: 학습 분석 ---
 with tab2:
     st.subheader("📊 월별 상세 학습 통계")
