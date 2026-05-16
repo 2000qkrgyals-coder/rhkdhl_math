@@ -155,13 +155,23 @@ with tab1:
     # --- 1. 지난 숙제 채점 섹션 ---
     st.write("### ✍️ 지난 숙제 채점")
     # --- TAB 1 내부 기존 셀렉트박스 생성 코드 수정 ---
+    # --- [TAB 1] 최근 2개 숙제만 불러오기 제한 설정 --- ⭐
     if not all_sessions.empty:
-        # row['date'] 대신 get_date_with_weekday(row['date']) 적용 ⭐
+        # 1. 날짜와 회차 기준으로 정렬하여 가장 최근 수업이 맨 위로 오도록 정렬
+        # (문자열 날짜일 수 있으므로 안전하게 세션번호나 날짜 역순 정렬)
+        recent_sessions = all_sessions.sort_values(by=['date', 'session_num'], ascending=False).head(2)
+        
+        # 2. 최근 2개 데이터로만 딕셔너리 생성
         hw_options = {
             f"[{int(row['session_num'])}회차] {get_date_with_weekday(row['date'])} : {row['next_hw']}": row['next_hw'] 
-            for _, row in all_sessions.iterrows()
+            for _, row in recent_sessions.iterrows()
         }
-        selected_label = st.selectbox("📥 이전 숙제 불러오기", ["선택 안 함"] + list(hw_options.keys()))
+        
+        # 3. 셀렉트박스 출력
+        selected_label = st.selectbox(
+            "📥 이전 숙제 불러오기 (최근 2회차만 표시)", 
+            ["선택 안 함"] + list(hw_options.keys())
+        )
         if selected_label != "선택 안 함" and st.button("적용하기", key="btn_apply_old_hw"):
             actual_hw = hw_options[selected_label]
             hw_parts = actual_hw.split(" | ")
