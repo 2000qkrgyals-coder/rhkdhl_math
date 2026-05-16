@@ -156,23 +156,35 @@ with tab1:
         parsed_h_ends.append(def_end)
         parsed_h_notes.append(def_note)
     # =================================================================
-
-    # --- 1. 숙제 채점 섹션 ---
+# --- 1. 숙제 채점 섹션 (첫 줄 범위 씹힘 현상 완벽 해결 버전) ---
     st.write("### ✍️ 지난 숙제 채점")
     if not all_sessions.empty:
         hw_options = {f"[{int(row['session_num'])}회차] {row['date']} : {row['next_hw']}": row['next_hw'] for _, row in all_sessions.iterrows()}
         selected_label = st.selectbox("📥 이전 숙제 불러오기", ["선택 안 함"] + list(hw_options.keys()))
+        
         if selected_label != "선택 안 함" and st.button("적용하기"):
             actual_hw = hw_options[selected_label]
             hw_parts = actual_hw.split(" | ")
+            
+            # 1. 채점칸 및 숙제칸 줄 수 동기화
             st.session_state.check_rows = len(hw_parts)
+            st.session_state.h_rows = len(hw_parts)
+            
+            # 2. 각 한 줄씩 순회하며 메모리 원본과 컴포넌트 내부 State를 동시 강제 갱신 ⭐
             for i, part in enumerate(hw_parts): 
                 st.session_state[f"edit_c_val_{i}"] = part
-            
-            # 중요: 숙제 데이터도 즉시 동기화해 주어 첫 줄 씹힘 방지
-            for i, part in enumerate(hw_parts):
                 st.session_state[f"edit_h_val_{i}"] = part
-            st.session_state.h_rows = len(hw_parts)
+                
+                # [핵심 처방] 텍스트 입력창(cr_i)의 씹힘 방지를 위해 내부 세션 상태 강제 동기화
+                if ":" in part:
+                    r_range = part.split(":", 1)[1].strip()
+                    # 괄호 제거 후 순수 범위 추출
+                    pure_range = r_range.split("(")[0].strip() if "(" in r_range else r_range
+                else:
+                    pure_range = part.strip()
+                    
+                st.session_state[f"cr_{i}"] = pure_range  # 컴포넌트 텍스트창 메모리 강제 입력!
+                
             st.rerun()
 
     no_hw = st.checkbox("✅ 숙제 없음", key="no_hw_check", value=st.session_state.get('edit_no_hw', False))
@@ -183,9 +195,11 @@ with tab1:
             c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
             e_val = st.session_state.get(f"edit_c_val_{i}", "")
             def_book = e_val.split(":")[0] if ":" in e_val else (s_books[0] if s_books else "미등록")
+            
             raw_range = e_val.split(":")[1].strip() if ":" in e_val else ""
             def_range = raw_range.split("(")[0].strip() if "(" in raw_range else raw_range
             
+            # 3. UI 그리기 (이제 st.session_state[f"cr_{i}"]가 미리 채워졌으므로 버그 없이 완벽 작동)
             cb = c1.selectbox(f"교재 {i+1}", s_books, index=s_books.index(def_book) if def_book in s_books else 0, key=f"cb_{i}")
             cr = c2.text_input(f"범위 {i+1}", value=def_range, key=f"cr_{i}")
             ct = c3.number_input(f"총", min_value=0, key=f"ct_{i}")
