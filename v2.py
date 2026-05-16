@@ -446,7 +446,7 @@ with tab4:
                 
                 st.info(f"💬 피드백: {row['feedback']}")
                 
-# --- 수정하기 버튼 클릭 시 모든 데이터 복원 (들여쓰기 정렬 버전) ---
+# --- [최종 완결] 수정하기 버튼 클릭 시 데이터 백업 장치 (시간 + 문항수 연동 보강) ---
                 if st.button("📝 수정하기", key=f"edit_log_{row['id']}"):
                     # 1. 기본 정보 및 피드백 복원
                     st.session_state.edit_id = row['id']
@@ -454,16 +454,17 @@ with tab4:
                     st.session_state.edit_session_num = int(row['session_num'])
                     st.session_state.edit_feedback = row['feedback']
                     
-                    # 2. 시간 데이터 문자열 복원 (새로 추가된 곳)
-                    st.session_state.edit_start_time = row.get('start_time', "14:00")
-                    st.session_state.edit_end_time = row.get('end_time', "16:00")
+                    # 2. 수업 시작 / 종료 시간 복원 (안전한 안전장치 추가) ⭐
+                    # 데이터프레임 열 이름이 다를 경우를 대비해 get()으로 안전하게 파싱
+                    st.session_state.edit_start_time = str(row.get('start_time', row.get('시작시간', "14:00")))
+                    st.session_state.edit_end_time = str(row.get('end_time', row.get('종료시간', "16:00")))
                     
                     # 3. 숙제 오답 데이터 복원
-                    st.session_state.edit_w_total = row['wrong_total']
-                    st.session_state.edit_w_calc = row['err_calc']
-                    st.session_state.edit_w_concept = row['err_concept']
-                    st.session_state.edit_w_hard = row['err_hard']
-                    st.session_state.edit_w_under = row['err_understand']
+                    st.session_state.edit_w_total = row.get('wrong_total', 0)
+                    st.session_state.edit_w_calc = row.get('err_calc', 0)
+                    st.session_state.edit_w_concept = row.get('err_concept', 0)
+                    st.session_state.edit_w_hard = row.get('err_hard', 0)
+                    st.session_state.edit_w_under = row.get('err_understand', 0)
                     
                     # 4. 데일리 테스트 데이터 복원
                     st.session_state.edit_test_name = row.get('test_name', "")
@@ -474,32 +475,35 @@ with tab4:
                     st.session_state.edit_t_hard = row.get('test_hard', 0)
                     st.session_state.edit_t_under = row.get('test_under', 0)
                     
-                    # 5. 지난 숙제 채점칸 (hw_detail) 복원
-                    if row['hw_detail']:
+                    # 5. 지난 숙제 채점칸 (hw_detail) 복원 -> 총/푼 파서용 데이터 강제 주입 ⭐
+                    if row['hw_detail'] and str(row['hw_detail']).strip():
                         c_parts = str(row['hw_detail']).split(" | ")
                         st.session_state.check_rows = len(c_parts)
                         for i, part in enumerate(c_parts):
-                            st.session_state[f"edit_c_val_{i}"] = part
+                            st.session_state[f"edit_c_val_{i}"] = part.strip()
                     else:
                         st.session_state.check_rows = 1
+                        st.session_state["edit_c_val_0"] = ""
 
                     # 6. 오늘 수업 진도 (progress) 복원
-                    if row['progress']:
+                    if row['progress'] and str(row['progress']).strip():
                         p_parts = str(row['progress']).split(" | ")
                         st.session_state.p_rows = len(p_parts)
                         for i, part in enumerate(p_parts):
-                            st.session_state[f"edit_p_val_{i}"] = part
+                            st.session_state[f"edit_p_val_{i}"] = part.strip()
                     else:
                         st.session_state.p_rows = 1
+                        st.session_state["edit_p_val_0"] = ""
 
                     # 7. 다음 숙제 분할 칸 (next_hw) 복원
-                    if row['next_hw']:
+                    if row['next_hw'] and str(row['next_hw']).strip():
                         h_parts = str(row['next_hw']).split(" | ")
                         st.session_state.h_rows = len(h_parts)
                         for i, part in enumerate(h_parts):
-                            st.session_state[f"edit_h_val_{i}"] = part
+                            st.session_state[f"edit_h_val_{i}"] = part.strip()
                     else:
                         st.session_state.h_rows = 1
+                        st.session_state["edit_h_val_0"] = ""
                     
                     st.success("모든 원본 데이터를 성공적으로 백업했습니다. 탭 1로 이동합니다."); time.sleep(0.8); st.rerun()
     else:
