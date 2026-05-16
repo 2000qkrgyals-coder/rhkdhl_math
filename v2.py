@@ -200,51 +200,78 @@ with tab1:
             pr = cc2.text_input(f"진도 범위", value=e_p.split(":")[1].strip() if ":" in e_p else "", key=f"pr_{i}")
             if pb and pr: p_list.append(f"{pb}: {pr}")
         
-        # --- [개선된 4단 분리형] 다음 숙제 입력 루프 ---
+        # --- TAB 1 내부의 "📝 다음 숙제" 입력 루프 부문 (완벽 보완 버전) ---
         st.write("📝 다음 숙제")
         for i in range(st.session_state.h_rows):
             st.markdown(f"**📍 숙제 {i+1}**")
             hc1, hc2, hc3, hc4 = st.columns([2, 1, 1, 3])
             
             e_h = st.session_state.get(f"edit_h_val_{i}", "")
+            
+            # 기본값 초기화
             def_hb = s_books[0] if s_books else "미등록"
             def_start, def_end, def_note = "", "", ""
             
-            # 조립되어 있던 기존 문자열을 스마트하게 다시 쪼개서 각 칸에 배치
             if ":" in e_h:
+                # 1. 교재명 분리 ("개념편: p.109~111" -> "개념편", "p.109~111")
                 def_hb = e_h.split(":")[0].strip()
                 rem = e_h.split(":")[1].strip()
-                if "p." in rem:
-                    rem = rem.replace("p.", "")
                 
-                # 비고 코멘트 분리: "12~18 (홀수만)" -> "12~18", "홀수만"
+                # 2. 비고/코멘트 괄호 분리 로직
                 if "(" in rem:
                     page_part, note_part = rem.split("(", 1)
                     def_note = note_part.replace(")", "").strip()
                     page_part = page_part.strip()
                 else:
                     page_part = rem.strip()
+                    def_note = ""
                 
-                # 시작 및 끝 페이지 분리: "12~18" -> "12", "18"
-                if "~" in page_part:
-                    p_split = page_part.split("~")
+                # 3. 불필요한 'p.' 또는 '번' 접두사/접미사 제거 및 보존
+                # '번'이나 'p.'이 없어도 정상 작동하도록 예외 처리
+                clean_page = page_part.replace("p.", "").replace("번", "").strip()
+                
+                # 4. 물결(~) 기호 기준으로 시작/끝 분리
+                if "~" in clean_page:
+                    p_split = clean_page.split("~")
                     def_start = p_split[0].strip()
                     def_end = p_split[1].strip()
+                    
+                    # 만약 숫자가 아니라 '전부' 같은 문자가 범위에 섞여 있다면 비고란으로 이동
+                    if not def_start.isdigit() and not def_end.isdigit():
+                        def_note = page_part
+                        def_start, def_end = "", ""
                 else:
-                    def_start = page_part
+                    # 물결이 없는 경우 (예: "전부", "p.105")
+                    if clean_page.isdigit():
+                        def_start = clean_page
+                    else:
+                        # 숫자가 아니면 ("전부" 같은 경우) 통째로 비고란에 할당
+                        def_note = page_part
             
+            # UI 컴포넌트 매핑
             hb = hc1.selectbox(f"교재", s_books, index=s_books.index(def_hb) if def_hb in s_books else 0, key=f"hb_{i}")
             h_start = hc2.text_input(f"시작(p)", value=def_start, key=f"h_start_{i}", placeholder="12")
             h_end = hc3.text_input(f"끝(p)", value=def_end, key=f"h_end_{i}", placeholder="18")
-            h_note = hc4.text_input(f"비고 / 코멘트", value=def_note, key=f"h_note_{i}", placeholder="예: 홀수만 / 20번~35번 제외")
+            h_note = hc4.text_input(f"비고/코멘트", value=def_note, key=f"h_note_{i}", placeholder="홀수만 / 전부 / 몇번까지")
             
-            # 입력 데이터가 하나라도 있으면 하나의 규격화된 문자열로 통합 조립
+            # 입력값이 존재할 때 데이터 다시 조립 (저장용)
             if hb and (h_start or h_end or h_note):
-                page_str = f"p.{h_start}" if h_start else "p."
+                # 시작이나 끝에 숫자가 들어가 있으면 기본적으로 p.를 붙이고, 쎈/RPM 등 번호 위주면 유연하게 처리
+                prefix = "p." if (h_start.isdigit() or h_end.isdigit()) else ""
+                
+                page_str = f"{prefix}{h_start}" if h_start else ""
                 if h_end: 
-                    page_str += f"~{h_end}"
+                    if page_str:
+                        page_str += f"~{h_end}"
+                    else:
+                        page_str = f"{prefix}~{h_end}"
+                
+                # 번호 단위 입력 대응 (예: '번'이 입력 안 되었을 때 가독성을 위해 추가 가능)
+                if ("번" not in page_str) and (any(x in hb for x in ["쎈", "라이트쎈", "RPM", "플러스"])):
+                    if page_str: page_str += "번"
+                
                 note_str = f" ({h_note})" if h_note else ""
-                h_list.append(f"{hb}: {page_str}{note_str}")
+                h_list.append(f"{hb}: {page_str}{note_str}".strip())
 
         fback = st.text_area("피드백", value=st.session_state.get('edit_feedback', ""), key="fb_text")
         
