@@ -59,7 +59,6 @@ if 'check_rows' not in st.session_state: st.session_state.check_rows = 1
 
 def full_reset():
     for key in list(st.session_state.keys()):
-        # 학생 선택과 로그인 정보, 행 개수 정보는 유지
         if key not in ['main_student_selector', 'p_rows', 'h_rows', 'check_rows', 'logged_in']:
             del st.session_state[key]
     st.session_state.p_rows = 1
@@ -83,13 +82,10 @@ with st.sidebar:
         st.stop()
 
 def get_date_with_weekday(date_val):
-    """'2026-05-17' 형태의 날짜를 '2026-05-17 (일)' 형태로 변환합니다."""
     if not date_val:
         return ""
     try:
-        # 문자열인 경우 datetime 객체로 변환
         if isinstance(date_val, str):
-            # '2026-05-17 00:00:00' 처럼 시분초가 붙어오는 경우 방어
             clean_date = date_val.split(" ")[0]
             dt = datetime.strptime(clean_date, "%Y-%m-%d")
         else:
@@ -154,14 +150,8 @@ with tab1:
 
     # --- 1. 지난 숙제 채점 섹션 ---
     st.write("### ✍️ 지난 숙제 채점")
-    # --- TAB 1 내부 기존 셀렉트박스 생성 코드 수정 ---
-    # --- [TAB 1] 최근 2개 숙제만 불러오기 제한 설정 --- ⭐
     if not all_sessions.empty:
-        # 1. 날짜와 회차 기준으로 정렬하여 가장 최근 수업이 맨 위로 오도록 정렬
-        # (문자열 날짜일 수 있으므로 안전하게 세션번호나 날짜 역순 정렬)
         recent_sessions = all_sessions.sort_values(by=['date', 'session_num'], ascending=False).head(2)
-        
-        # 2. 최근 2개 데이터로만 딕셔너리 생성
         hw_options = {
             f"[{int(row['session_num'])}회차] {get_date_with_weekday(row['date'])} : {row['next_hw']}": row['next_hw'] 
             for _, row in recent_sessions.iterrows()
@@ -169,7 +159,7 @@ with tab1:
         
         # 3. 셀렉트박스 출력
         selected_label = st.selectbox(
-            "📥 이전 숙제 불러오기 (최근 2회차만 표시)", 
+            "📥 이전 숙제 불러오기", 
             ["선택 안 함"] + list(hw_options.keys())
         )
         if selected_label != "선택 안 함" and st.button("적용하기", key="btn_apply_old_hw"):
