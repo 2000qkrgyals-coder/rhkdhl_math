@@ -97,7 +97,7 @@ def get_date_with_weekday(date_val):
         return str(date_val)
 
 tab1, tab2, tab3, tab4 = st.tabs(["📝 수업 기록/수정", "📊 학습 분석", "📚 교재 관리", "📂 전체 로그"])
-# --- TAB 1: 수업 기록 및 수정 (무한 로딩 방지 콜백 버전) ---
+# --- TAB 1: 수업 기록 및 수정 (무한 로딩 및 키 중복 완벽 해결 버전) ---
 with tab1:
     def safe_int(val):
         try:
@@ -159,7 +159,7 @@ with tab1:
             for _, row in recent_sessions.iterrows()
         }
         
-        # 💡 [무한 로딩 차단 전용 콜백 함수 선언]
+        # 💡 무한 로딩을 완벽 차단하는 전용 콜백 함수
         def apply_old_homework_callback():
             target_label = st.session_state.get("sb_apply_old_hw_track")
             if target_label and target_label != "선택 안 함":
@@ -186,13 +186,9 @@ with tab1:
             key="sb_apply_old_hw_track"
         )
         
-        # 💡 버튼 클릭 시 'on_click' 콜백 함수가 실행되도록 구조 단순화 (무한루프 원천 차단)
-       if selected_label != "선택 안 함":
-          st.button("적용하기", key="btn_apply_old_hw_unique_callback", on_click=apply_old_homework_callback)
-        
-        # 적용하기 버튼 클릭 시 처리
-        if selected_label != "선택 안 함" and st.button("적용하기", key="btn_apply_old_hw"):
-            actual_hw = hw_options[selected_label]
+        # 💡 [교정 핵심] 옛날 버튼 코드를 완전히 삭제하고, 콜백이 지정된 단 하나의 버튼만 남겼습니다.
+        if selected_label != "선택 안 함":
+            st.button("적용하기", key="btn_apply_old_hw_unique_callback", on_click=apply_old_homework_callback)
             
             # 문장 분리
             if " | " in actual_hw:
