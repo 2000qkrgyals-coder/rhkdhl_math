@@ -82,6 +82,24 @@ with st.sidebar:
         st.error("등록된 학생이 없습니다.")
         st.stop()
 
+def get_date_with_weekday(date_val):
+    """'2026-05-17' 형태의 날짜를 '2026-05-17 (일)' 형태로 변환합니다."""
+    if not date_val:
+        return ""
+    try:
+        # 문자열인 경우 datetime 객체로 변환
+        if isinstance(date_val, str):
+            # '2026-05-17 00:00:00' 처럼 시분초가 붙어오는 경우 방어
+            clean_date = date_val.split(" ")[0]
+            dt = datetime.strptime(clean_date, "%Y-%m-%d")
+        else:
+            dt = date_val
+            
+        weekdays = ["월", "화", "수", "목", "금", "토", "일"]
+        return f"{dt.strftime('%Y-%m-%d')} ({weekdays[dt.weekday()]})"
+    except:
+        return str(date_val)
+
 tab1, tab2, tab3, tab4 = st.tabs(["📝 수업 기록/수정", "📊 학습 분석", "📚 교재 관리", "📂 전체 로그"])
 
 # --- TAB 1: 수업 기록 및 수정 (시간 + 문항수 완벽 복원 버전) ---
