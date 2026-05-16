@@ -411,7 +411,7 @@ with tab3:
             s_books.remove(b); df_st.loc[df_st['id'] == s_id, 'books'] = json.dumps(s_books, ensure_ascii=False)
             save_data(df_st, "students"); st.rerun()
 
-# --- TAB 4: 전체 로그 (요일 표시 + 수정 데이터 완전 연동 버전) ---
+# --- TAB 4: 전체 로그 (요일 표시 + 수정 + 학부모 카톡 복원 완결판) ---
 with tab4:
     st.subheader("📂 수업 로그 조회")
     if not all_sessions.empty:
@@ -419,15 +419,13 @@ with tab4:
         all_sessions['year_month'] = all_sessions['date_dt'].dt.strftime('%Y-%m')
         log_filter = st.selectbox("📅 조회할 월 선택", ["전체 보기"] + sorted(all_sessions['year_month'].unique(), reverse=True), key="log_month_filter")
         
-        # 실제 생성된 변수명은 display_df 입니다.
         display_df = all_sessions if log_filter == "전체 보기" else all_sessions[all_sessions['year_month'] == log_filter]
 
-        # --- TAB 4 내부 익스팬더 반복문 영역 (변수명 display_df로 교정) ---
         for idx, row in display_df.iterrows():
             # 요일이 포함된 날짜 문자열 생성
             date_with_day = get_date_with_weekday(row['date'])
             
-            # 익스팬더 제목에 적용
+            # 익스팬더 제목 (.0 제거를 위해 int형 변환)
             label = f"[{int(row['session_num'])}회차] {date_with_day} | 이행률 {row['hw_result_rate']}%"
             with st.expander(label):
                 
@@ -456,64 +454,88 @@ with tab4:
                 
                 st.divider()
                 
-                # --- [최종 완결] 수정하기 버튼 클릭 시 데이터 백업 장치 (들여쓰기 교정 완료) ---
-                if st.button("📝 수정하기", key=f"edit_log_{row['id']}"):
-                    # 1. 기본 정보 및 피드백 복원
-                    st.session_state.edit_id = row['id']
-                    st.session_state.edit_date = row['date']
-                    st.session_state.edit_session_num = int(row['session_num'])
-                    st.session_state.edit_feedback = row['feedback']
-                    
-                    # 2. 수업 시작 / 종료 시간 복원
-                    st.session_state.edit_start_time = str(row.get('start_time', "14:00"))
-                    st.session_state.edit_end_time = str(row.get('end_time', "16:00"))
-                    
-                    # 3. 숙제 오답 데이터 복원
-                    st.session_state.edit_w_total = row.get('wrong_total', 0)
-                    st.session_state.edit_w_calc = row.get('err_calc', 0)
-                    st.session_state.edit_w_concept = row.get('err_concept', 0)
-                    st.session_state.edit_w_hard = row.get('err_hard', 0)
-                    st.session_state.edit_w_under = row.get('err_understand', 0)
-                    
-                    # 4. 데일리 테스트 데이터 복원
-                    st.session_state.edit_test_name = row.get('test_name', "")
-                    st.session_state.edit_test_total = row.get('test_total', 0)
-                    st.session_state.edit_test_score = row.get('test_score', 0)
-                    st.session_state.edit_t_calc = row.get('test_calc', 0)
-                    st.session_state.edit_t_concept = row.get('test_concept', 0)
-                    st.session_state.edit_t_hard = row.get('test_hard', 0)
-                    st.session_state.edit_t_under = row.get('test_under', 0)
-                    
-                    # 5. 지난 숙제 채점칸 (hw_detail) 복원 -> 총/푼 파서용 데이터 주입
-                    if row['hw_detail'] and str(row['hw_detail']).strip():
-                        c_parts = str(row['hw_detail']).split(" | ")
-                        st.session_state.check_rows = len(c_parts)
-                        for i, part in enumerate(c_parts):
-                            st.session_state[f"edit_c_val_{i}"] = part.strip()
-                    else:
-                        st.session_state.check_rows = 1
-                        st.session_state["edit_c_val_0"] = ""
+                # --- 📱 학부모 전송용 텍스트 자동 생성 로직 --- ⭐
+                # 데일리 테스트 결과 정돈
+                if row.get('test_total', 0) > 0:
+                    test_str = f"✍️ 데일리 테스트: {int(row['test_score'])}문항 / {int(row['test_total'])}문항 만족"
+                else:
+                    test_str = "✍️ 데일리 테스트: 미실시"
+                
+                # 가독성을 극대화한 브리핑 문자열 조립
+                parent_message = f"""[수업 브리핑 안내]
+안녕하세요, 어머니! 오늘 수업 기록 공유드립니다. 📝
 
-                    # 6. 오늘 수업 진도 (progress) 복원
-                    if row['progress'] and str(row['progress']).strip():
-                        p_parts = str(row['progress']).split(" | ")
-                        st.session_state.p_rows = len(p_parts)
-                        for i, part in enumerate(p_parts):
-                            st.session_state[f"edit_p_val_{i}"] = part.strip()
-                    else:
-                        st.session_state.p_rows = 1
-                        st.session_state["edit_p_val_0"] = ""
+🗓️ 수업 일시: {date_with_day}
+🔢 수업 회차: {int(row['session_num'])}회차
 
-                    # 7. 다음 숙제 분할 칸 (next_hw) 복원
-                    if row['next_hw'] and str(row['next_hw']).strip():
-                        h_parts = str(row['next_hw']).split(" | ")
-                        st.session_state.h_rows = len(h_parts)
-                        for i, part in enumerate(h_parts):
-                            st.session_state[f"edit_h_val_{i}"] = part.strip()
-                    else:
-                        st.session_state.h_rows = 1
-                        st.session_state["edit_h_val_0"] = ""
+📊 지난 숙제 이행률: {row['hw_result_rate']}%
+{test_str}
+
+📖 오늘 수업 진도:
+{row['progress'] if row['progress'] else "기록 없음"}
+
+📌 다음 숙제 미션:
+{row['next_hw'] if row['next_hw'] else "기록 없음"}
+
+💬 선생님 피드백:
+{row['feedback'] if row['feedback'] else "오늘도 집중해서 성실하게 수업에 임했습니다."}
+
+궁금하신 점이 있으시면 언제든 편하게 말씀해 주세요. 감사합니다! 😊"""
+
+                # 하단 버튼 배치 (수정하기 / 카톡 복사)
+                c_btn1, c_btn2 = st.columns([1, 1])
+                
+                with c_btn1:
+                    # 기존 수정하기 버튼
+                    if st.button("📝 수정하기", key=f"edit_log_{row['id']}"):
+                        st.session_state.edit_id = row['id']
+                        st.session_state.edit_date = row['date']
+                        st.session_state.edit_session_num = int(row['session_num'])
+                        st.session_state.edit_feedback = row['feedback']
+                        st.session_state.edit_start_time = str(row.get('start_time', "14:00"))
+                        st.session_state.edit_end_time = str(row.get('end_time', "16:00"))
+                        st.session_state.edit_w_total = row.get('wrong_total', 0)
+                        st.session_state.edit_w_calc = row.get('err_calc', 0)
+                        st.session_state.edit_w_concept = row.get('err_concept', 0)
+                        st.session_state.edit_w_hard = row.get('err_hard', 0)
+                        st.session_state.edit_w_under = row.get('err_understand', 0)
+                        st.session_state.edit_test_name = row.get('test_name', "")
+                        st.session_state.edit_test_total = row.get('test_total', 0)
+                        st.session_state.edit_test_score = row.get('test_score', 0)
+                        st.session_state.edit_t_calc = row.get('test_calc', 0)
+                        st.session_state.edit_t_concept = row.get('test_concept', 0)
+                        st.session_state.edit_t_hard = row.get('test_hard', 0)
+                        st.session_state.edit_t_under = row.get('test_under', 0)
+                        
+                        if row['hw_detail'] and str(row['hw_detail']).strip():
+                            c_parts = str(row['hw_detail']).split(" | ")
+                            st.session_state.check_rows = len(c_parts)
+                            for i, part in enumerate(c_parts): st.session_state[f"edit_c_val_{i}"] = part.strip()
+                        else:
+                            st.session_state.check_rows = 1
+                            st.session_state["edit_c_val_0"] = ""
+
+                        if row['progress'] and str(row['progress']).strip():
+                            p_parts = str(row['progress']).split(" | ")
+                            st.session_state.p_rows = len(p_parts)
+                            for i, part in enumerate(p_parts): st.session_state[f"edit_p_val_{i}"] = part.strip()
+                        else:
+                            st.session_state.p_rows = 1
+                            st.session_state["edit_p_val_0"] = ""
+
+                        if row['next_hw'] and str(row['next_hw']).strip():
+                            h_parts = str(row['next_hw']).split(" | ")
+                            st.session_state.h_rows = len(h_parts)
+                            for i, part in enumerate(h_parts): st.session_state[f"edit_h_val_{i}"] = part.strip()
+                        else:
+                            st.session_state.h_rows = 1
+                            st.session_state["edit_h_val_0"] = ""
+                        
+                        st.success("모든 원본 데이터를 성공적으로 백업했습니다. 탭 1로 이동합니다."); time.sleep(0.8); st.rerun()
+                
+                with c_btn2:
+                    # ✨ 대망의 학부모 전송용 텍스트 복사 버튼 (텍스트 영역으로 시각화하여 복사 유도)
+                    st.text_area("📱 아래 텍스트를 복사해서 카톡에 붙여넣으세요!", value=parent_message, height=180, key=f"msg_area_{row['id']}")
                     
-                    st.success("모든 원본 데이터를 성공적으로 백업했습니다. 탭 1로 이동합니다."); time.sleep(0.8); st.rerun()
     else:
         st.info("기록된 수업 로그가 없습니다.")
