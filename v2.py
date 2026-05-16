@@ -428,7 +428,7 @@ with tab4:
             date_with_day = get_date_with_weekday(row['date'])
             
             # 익스팬더 제목에 적용
-            label = f"[{row['session_num']}회차] {date_with_day} | 이행률 {row['hw_result_rate']}%"
+            label = f"[{int(row['session_num'])}회차] {date_with_day} | 이행률 {row['hw_result_rate']}%"
             with st.expander(label):
                 
                 col_info1, col_info2 = st.columns(2)
