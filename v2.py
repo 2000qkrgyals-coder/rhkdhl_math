@@ -411,24 +411,26 @@ with tab3:
             s_books.remove(b); df_st.loc[df_st['id'] == s_id, 'books'] = json.dumps(s_books, ensure_ascii=False)
             save_data(df_st, "students"); st.rerun()
 
-# --- TAB 4: 전체 로그 ---
+# --- TAB 4: 전체 로그 (요일 표시 + 수정 데이터 완전 연동 버전) ---
 with tab4:
     st.subheader("📂 수업 로그 조회")
     if not all_sessions.empty:
         all_sessions['date_dt'] = pd.to_datetime(all_sessions['date'])
         all_sessions['year_month'] = all_sessions['date_dt'].dt.strftime('%Y-%m')
         log_filter = st.selectbox("📅 조회할 월 선택", ["전체 보기"] + sorted(all_sessions['year_month'].unique(), reverse=True), key="log_month_filter")
+        
+        # 실제 생성된 변수명은 display_df 입니다.
         display_df = all_sessions if log_filter == "전체 보기" else all_sessions[all_sessions['year_month'] == log_filter]
 
-        # --- TAB 4 내부 익스팬더 반복문 영역 수정 ---
-        for idx, row in df_display.iterrows():
-            # 요일이 포함된 날짜 문자열 생성 ⭐
+        # --- TAB 4 내부 익스팬더 반복문 영역 (변수명 display_df로 교정) ---
+        for idx, row in display_df.iterrows():
+            # 요일이 포함된 날짜 문자열 생성
             date_with_day = get_date_with_weekday(row['date'])
             
             # 익스팬더 제목에 적용
             label = f"[{row['session_num']}회차] {date_with_day} | 이행률 {row['hw_result_rate']}%"
             with st.expander(label):
-                # ... (이하 기존 내부 코드 및 수정하기 버튼 코드는 그대로 유지) ...
+                
                 col_info1, col_info2 = st.columns(2)
                 
                 with col_info1:
@@ -443,36 +445,18 @@ with tab4:
                         st.caption(f"📍 테스트오답: 계산:{int(row['test_calc'])} / 개념:{int(row['test_concept'])} / 난이도:{int(row['test_hard'])} / 이해:{int(row['test_under'])}")
                     else:
                         st.caption("실시하지 않음")
-
+                        
                 with col_info2:
-                    st.markdown("**📖 수업 진도**")
-                    st.text(row['progress'] if row['progress'] else "기록 없음")
-                    
-                    st.markdown("**🚀 다음 숙제**")
-                    if row['next_hw'] and row['next_hw'] != "숙제 없음":
-                        # 로그 화면에서 숙제를 더 가독성 있게 쪼개서 보여주는 뷰어 로직
-                        raw_hws = str(row['next_hw']).split(" | ")
-                        for idx, hw_item in enumerate(raw_hws):
-                            if ":" in hw_item:
-                                b_title, b_rem = hw_item.split(":", 1)
-                                b_title = b_title.strip()
-                                b_rem = b_rem.strip()
-                                
-                                # 코멘트(괄호) 분리하여 가독성 강화
-                                if "(" in b_rem:
-                                    b_range, b_note = b_rem.split("(", 1)
-                                    b_note = b_note.replace(")", "").strip()
-                                    st.markdown(f"{idx+1}. **{b_title}** : {b_range.strip()} 💡 *({b_note})*")
-                                else:
-                                    st.markdown(f"{idx+1}. **{b_title}** : {b_rem}")
-                            else:
-                                st.markdown(f"{idx+1}. {hw_item}")
-                    else:
-                        st.caption("숙제 없음")
+                    st.markdown("**📖 오늘 진도 및 다음 숙제**")
+                    st.write(f"⏱️ 수업 시간: {row.get('start_time', '14:00')} ~ {row.get('end_time', '16:00')} ({row.get('duration', 0)}분)")
+                    st.text(f"진도: {row['progress']}" if row['progress'] else "진도: 없음")
+                    st.text(f"다음 숙제: {row['next_hw']}" if row['next_hw'] else "다음 숙제: 없음")
+                    st.markdown("**💬 피드백**")
+                    st.info(row['feedback'] if row['feedback'] else "작성된 피드백이 없습니다.")
                 
-                st.info(f"💬 피드백: {row['feedback']}")
+                st.divider()
                 
-# --- [최종 완결] 수정하기 버튼 클릭 시 데이터 백업 장치 (시간 + 문항수 연동 보강) ---
+                # --- [최종 완결] 수정하기 버튼 클릭 시 데이터 백업 장치 (들여쓰기 교정 완료) ---
                 if st.button("📝 수정하기", key=f"edit_log_{row['id']}"):
                     # 1. 기본 정보 및 피드백 복원
                     st.session_state.edit_id = row['id']
@@ -480,10 +464,9 @@ with tab4:
                     st.session_state.edit_session_num = int(row['session_num'])
                     st.session_state.edit_feedback = row['feedback']
                     
-                    # 2. 수업 시작 / 종료 시간 복원 (안전한 안전장치 추가) ⭐
-                    # 데이터프레임 열 이름이 다를 경우를 대비해 get()으로 안전하게 파싱
-                    st.session_state.edit_start_time = str(row.get('start_time', row.get('시작시간', "14:00")))
-                    st.session_state.edit_end_time = str(row.get('end_time', row.get('종료시간', "16:00")))
+                    # 2. 수업 시작 / 종료 시간 복원
+                    st.session_state.edit_start_time = str(row.get('start_time', "14:00"))
+                    st.session_state.edit_end_time = str(row.get('end_time', "16:00"))
                     
                     # 3. 숙제 오답 데이터 복원
                     st.session_state.edit_w_total = row.get('wrong_total', 0)
@@ -501,7 +484,7 @@ with tab4:
                     st.session_state.edit_t_hard = row.get('test_hard', 0)
                     st.session_state.edit_t_under = row.get('test_under', 0)
                     
-                    # 5. 지난 숙제 채점칸 (hw_detail) 복원 -> 총/푼 파서용 데이터 강제 주입 ⭐
+                    # 5. 지난 숙제 채점칸 (hw_detail) 복원 -> 총/푼 파서용 데이터 주입
                     if row['hw_detail'] and str(row['hw_detail']).strip():
                         c_parts = str(row['hw_detail']).split(" | ")
                         st.session_state.check_rows = len(c_parts)
@@ -533,4 +516,4 @@ with tab4:
                     
                     st.success("모든 원본 데이터를 성공적으로 백업했습니다. 탭 1로 이동합니다."); time.sleep(0.8); st.rerun()
     else:
-        st.info("로그가 없습니다.")
+        st.info("기록된 수업 로그가 없습니다.")
