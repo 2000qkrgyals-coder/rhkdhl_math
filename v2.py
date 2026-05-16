@@ -232,7 +232,7 @@ with tab1:
             acc_total += ct; acc_done += cd
         
         final_rate = int((acc_done / acc_total * 100)) if acc_total > 0 else 100
-        st.info(f"📊 **이행률: {final_rate}%** (총 {acc_total}문항 중 {acc_done}문항 완료)")
+        st.info(f"📊 **이행률: {final_rate}%** (총 {acc_total}페이지 중 {acc_done}페이지 완료)")
 
         st.write("#### ❌ 숙제 오답 분석")
         w_total = st.number_input("전체 숙제 오답 개수", min_value=0, value=safe_int(st.session_state.get('edit_w_total', 0)), key=f"w_total{edit_suffix}")
