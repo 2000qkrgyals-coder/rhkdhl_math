@@ -97,8 +97,6 @@ def get_date_with_weekday(date_val):
         return str(date_val)
 
 tab1, tab2, tab3, tab4 = st.tabs(["📝 수업 기록/수정", "📊 학습 분석", "📚 교재 관리", "📂 전체 로그"])
-
-# --- TAB 1: 수업 기록 및 수정 (시간 + 문항수 완벽 복원 버전) ---
 # --- TAB 1: 수업 기록 및 수정 (시간 + 문항수 완벽 복원 버전) ---
 with tab1:
     def safe_int(val):
@@ -152,7 +150,7 @@ with tab1:
     # --- 1. 지난 숙제 채점 섹션 ---
     st.write("### ✍️ 지난 숙제 채점")
     
-   if not all_sessions.empty:
+    if not all_sessions.empty:
         # 최근 2회차만 정렬하여 가져오기
         recent_sessions = all_sessions.sort_values(by=['date', 'session_num'], ascending=False).head(2)
         
@@ -189,11 +187,7 @@ with tab1:
             
             # 연속 불러오기 가능하도록 셀렉트박스 강제 초기화 장치
             st.session_state["sb_apply_old_hw_track"] = "선택 안 함"
-            
-            # 💡 [속도 개선 핵심] 불필요한 대기시간(0.4초)을 없애고 
-            # 한 번의 rerun으로 화면을 즉시 갱신합니다.
             st.rerun()
-
     no_hw = st.checkbox("✅ 숙제 없음", key="no_hw_check", value=st.session_state.get('edit_no_hw', False))
     check_list, acc_total, acc_done = [], 0, 0
     
