@@ -97,7 +97,8 @@ def get_date_with_weekday(date_val):
         return str(date_val)
 
 tab1, tab2, tab3, tab4 = st.tabs(["📝 수업 기록/수정", "📊 학습 분석", "📚 교재 관리", "📂 전체 로그"])
-# --- TAB 1: 수업 기록 및 수정 (무한 로딩 및 키 중복 완벽 해결 버전) ---
+tab1, tab2, tab3, tab4 = st.tabs(["📝 수업 기록/수정", "📊 학습 분석", "📚 교재 관리", "📂 전체 로그"])
+# --- TAB 1: 수업 기록 및 수정 (무한 로딩 + 변수 꼬임 완벽 해결 버전) ---
 with tab1:
     def safe_int(val):
         try:
@@ -159,7 +160,7 @@ with tab1:
             for _, row in recent_sessions.iterrows()
         }
         
-        # 💡 무한 로딩을 완벽 차단하는 전용 콜백 함수
+        # 💡 [콜백 엔지니어링] 무한 루프를 원천 격리하는 안전 연산 함수
         def apply_old_homework_callback():
             target_label = st.session_state.get("sb_apply_old_hw_track")
             if target_label and target_label != "선택 안 함":
@@ -186,28 +187,10 @@ with tab1:
             key="sb_apply_old_hw_track"
         )
         
-        # 💡 [교정 핵심] 옛날 버튼 코드를 완전히 삭제하고, 콜백이 지정된 단 하나의 버튼만 남겼습니다.
+        # 💡 [교정 핵심] 무한 루프를 도는 옛날 구형 조건문을 완전히 삭제하고 on_click 단독 버튼만 깔끔히 구현
         if selected_label != "선택 안 함":
             st.button("적용하기", key="btn_apply_old_hw_unique_callback", on_click=apply_old_homework_callback)
-            
-            # 문장 분리
-            if " | " in actual_hw:
-                hw_parts = actual_hw.split(" | ")
-            else:
-                hw_parts = [actual_hw]
-                
-            # 행 개수 즉시 갱신
-            st.session_state.check_rows = len(hw_parts)
-            st.session_state.h_rows = len(hw_parts)
-            
-            # 첫 번째 칸 유실 방지 및 세션 강제 주입
-            for i, part in enumerate(hw_parts): 
-                st.session_state[f"edit_c_val_{i}"] = part.strip()
-                st.session_state[f"edit_h_val_{i}"] = part.strip()
-            
-            # 연속 불러오기 가능하도록 셀렉트박스 강제 초기화 장치
-            st.session_state["sb_apply_old_hw_track"] = "선택 안 함"
-            st.rerun()
+        
     no_hw = st.checkbox("✅ 숙제 없음", key="no_hw_check", value=st.session_state.get('edit_no_hw', False))
     check_list, acc_total, acc_done = [], 0, 0
     
@@ -222,7 +205,7 @@ with tab1:
             def_total_q = 0
             def_done_q = 0
             
-            # 데이터 분리 파서 (예: "개념원리: p.10~p.20 (15/20)") ⭐
+            # 데이터 분리 파서 (예: "개념원리: p.10~p.20 (15/20)")
             if ":" in e_val:
                 def_book = e_val.split(":")[0].strip()
                 rem_part = e_val.split(":")[1].strip() # "p.10~p.20 (15/20)"
@@ -242,8 +225,8 @@ with tab1:
             # UI 컴포넌트에 파싱된 데이터 주입 (value 매핑 및 고유 키 갱신)
             cb = c1.selectbox(f"교재 {i+1}", s_books, index=s_books.index(def_book) if def_book in s_books else 0, key=f"cb_{i}{edit_suffix}")
             cr = c2.text_input(f"범위 {i+1}", value=def_range, key=f"cr_{i}{edit_suffix}")
-            ct = c3.number_input(f"총", min_value=0, value=def_total_q, key=f"ct_{i}{edit_suffix}") # 총 문항수 연동 ⭐
-            cd = c4.number_input(f"푼", min_value=0, value=def_done_q, key=f"cd_{i}{edit_suffix}")  # 푼 문항수 연동 ⭐
+            ct = c3.number_input(f"총", min_value=0, value=def_total_q, key=f"ct_{i}{edit_suffix}") 
+            cd = c4.number_input(f"푼", min_value=0, value=def_done_q, key=f"cd_{i}{edit_suffix}")  
             
             if cb and cr: 
                 check_list.append(f"{cb}: {cr} ({cd}/{ct})")
@@ -297,14 +280,13 @@ with tab1:
         next_s = int(all_sessions['session_num'].max() + 1) if not all_sessions.empty else 1
         sess_num = c_n.number_input("회차", value=int(st.session_state.get('edit_session_num', next_s)), key=f"sess_num{edit_suffix}")
         
-        # --- [시간 복원 철벽 파서 적용 장치] --- ⭐
+        # --- [시간 복원 철벽 파서 적용 장치] ---
         c_t1, c_t2 = st.columns(2)
         def_start_t = dt_time(14, 0)
         def_end_t = dt_time(16, 0)
         
         if is_edit_mode:
             try:
-                # "14:30:00" 혹은 "14:30" 등 다양한 시간 구조 차단 분리 시도
                 s_raw = str(st.session_state.get('edit_start_time', "14:00")).strip()
                 e_raw = str(st.session_state.get('edit_end_time', "16:00")).strip()
                 
@@ -314,7 +296,7 @@ with tab1:
                 if len(s_parts) >= 2: def_start_t = dt_time(int(s_parts[0]), int(s_parts[1]))
                 if len(e_parts) >= 2: def_end_t = dt_time(int(e_parts[0]), int(e_parts[1]))
             except Exception as e:
-                pass # 에러 방지용 안전 장치
+                pass
 
         start_t = c_t1.time_input("시작", def_start_t, key=f"start_t{edit_suffix}")
         end_t = c_t2.time_input("종료", def_end_t, key=f"end_t{edit_suffix}")
