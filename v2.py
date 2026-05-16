@@ -154,8 +154,13 @@ with tab1:
 
     # --- 1. 지난 숙제 채점 섹션 ---
     st.write("### ✍️ 지난 숙제 채점")
+    # --- TAB 1 내부 기존 셀렉트박스 생성 코드 수정 ---
     if not all_sessions.empty:
-        hw_options = {f"[{int(row['session_num'])}회차] {row['date']} : {row['next_hw']}": row['next_hw'] for _, row in all_sessions.iterrows()}
+        # row['date'] 대신 get_date_with_weekday(row['date']) 적용 ⭐
+        hw_options = {
+            f"[{int(row['session_num'])}회차] {get_date_with_weekday(row['date'])} : {row['next_hw']}": row['next_hw'] 
+            for _, row in all_sessions.iterrows()
+        }
         selected_label = st.selectbox("📥 이전 숙제 불러오기", ["선택 안 함"] + list(hw_options.keys()))
         if selected_label != "선택 안 함" and st.button("적용하기", key="btn_apply_old_hw"):
             actual_hw = hw_options[selected_label]
@@ -415,12 +420,15 @@ with tab4:
         log_filter = st.selectbox("📅 조회할 월 선택", ["전체 보기"] + sorted(all_sessions['year_month'].unique(), reverse=True), key="log_month_filter")
         display_df = all_sessions if log_filter == "전체 보기" else all_sessions[all_sessions['year_month'] == log_filter]
 
-        for _, row in display_df.iterrows():
-            # 제목에 테스트 실시 여부 표시
-            test_tag = f" | 📝 {row['test_name']}" if row.get('test_total', 0) > 0 else ""
-            title = f"📌 {int(row['session_num'])}회차 | {row['date']} | 이행 {int(row['hw_result_rate'])}%{test_tag}"
+        # --- TAB 4 내부 익스팬더 반복문 영역 수정 ---
+        for idx, row in df_display.iterrows():
+            # 요일이 포함된 날짜 문자열 생성 ⭐
+            date_with_day = get_date_with_weekday(row['date'])
             
-            with st.expander(title):
+            # 익스팬더 제목에 적용
+            label = f"[{row['session_num']}회차] {date_with_day} | 이행률 {row['hw_result_rate']}%"
+            with st.expander(label):
+                # ... (이하 기존 내부 코드 및 수정하기 버튼 코드는 그대로 유지) ...
                 col_info1, col_info2 = st.columns(2)
                 
                 with col_info1:
