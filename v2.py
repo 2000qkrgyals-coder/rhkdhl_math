@@ -103,7 +103,7 @@ with tab1:
     if is_edit_mode: 
         col_status.warning(f"🔄 **{st.session_state.edit_session_num}회차 수정 중**")
     if col_reset.button("🔄 내용 초기화", key="btn_full_reset"): 
-    full_reset()
+        full_reset()
 
     # =================================================================
     # [핵심 보완] 루프 밖에서 미리 전역적으로 다음 숙제 데이터를 완벽하게 파싱
