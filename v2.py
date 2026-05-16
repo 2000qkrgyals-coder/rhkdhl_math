@@ -97,7 +97,6 @@ def get_date_with_weekday(date_val):
         return str(date_val)
 
 tab1, tab2, tab3, tab4 = st.tabs(["📝 수업 기록/수정", "📊 학습 분석", "📚 교재 관리", "📂 전체 로그"])
-tab1, tab2, tab3, tab4 = st.tabs(["📝 수업 기록/수정", "📊 학습 분석", "📚 교재 관리", "📂 전체 로그"])
 # --- TAB 1: 수업 기록 및 수정 (무한 로딩 + 변수 꼬임 완벽 해결 버전) ---
 with tab1:
     def safe_int(val):
