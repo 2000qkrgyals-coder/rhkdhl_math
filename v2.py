@@ -134,21 +134,17 @@ with tab1:
             def_hb = e_h.split(":")[0].strip()
             rem = e_h.split(":", 1)[1].strip()
             
-            # 1. 비고/코멘트 분리: (...) 괄호가 있는지 확인
             if "(" in rem and rem.endswith(")"):
                 rem_part, note_part = rem.rsplit("(", 1)
                 def_note = note_part.replace(")", "").strip()
                 rem = rem_part.strip()
             
-            # 접두사/접미사 정제 (p., 번 제거)
             clean_page = rem.replace("p.", "").replace("번", "").strip()
             
-            # 2. 범위 분리 (~ 기준)
             if "~" in clean_page:
                 p_split = clean_page.split("~")
                 def_start = p_split[0].strip()
                 def_end = p_split[1].strip()
-                # 숫자가 아닌 문자열인 경우 비고로 전송
                 if not def_start.isdigit() and not def_end.isdigit():
                     def_note = rem
                     def_start, def_end = "", ""
@@ -156,7 +152,7 @@ with tab1:
                 if clean_page.isdigit():
                     def_start = clean_page
                 else:
-                    if clean_page:  # 숫자 형식이 아니면 전체를 비고로 처리
+                    if clean_page:
                         def_note = rem if not def_note else f"{rem} | {def_note}"
                         
         parsed_h_books.append(def_hb)
@@ -168,7 +164,6 @@ with tab1:
     st.write("### ✍️ 지난 숙제 채점")
     
     if not all_sessions.empty:
-        # 최근 2회차만 정렬하여 가져오기
         recent_sessions = all_sessions.sort_values(by=['date', 'session_num'], ascending=False).head(2)
         
         hw_options = {
@@ -176,27 +171,47 @@ with tab1:
             for _, row in recent_sessions.iterrows()
         }
         
-        # 💡 [콜백 엔지니어링] 데이터가 유실 없이 즉시 동기화되도록 보완된 안전 함수
+        # 🔥 [핵심 교정] 클릭하자마자 위젯 key에 데이터를 직접 주입하는 완벽한 콜백 함수
         def apply_old_homework_callback():
             target_label = st.session_state.get("sb_apply_old_hw_track")
             if target_label and target_label != "선택 안 함":
                 actual_hw = hw_options[target_label]
-                
-                # 문장 분리 (여러 개의 숙제가 ' | '로 연결된 경우)
                 hw_parts = actual_hw.split(" | ") if " | " in actual_hw else [actual_hw]
                 
-                # 행 개수 즉시 주입 및 세션 저장
                 st.session_state.check_rows = len(hw_parts)
                 st.session_state.h_rows = len(hw_parts)
                 
-                for i, part in enumerate(hw_parts): 
+                for i, part in enumerate(hw_parts):
                     st.session_state[f"edit_c_val_{i}"] = part.strip()
                     st.session_state[f"edit_h_val_{i}"] = part.strip()
+                    
+                    # 💡 하단 폼 위젯의 고유 Key 시스템에 파싱 데이터를 다이렉트로 강제 주입
+                    p_book = s_books[0] if s_books else "미등록"
+                    p_start, p_end, p_note = "", "", ""
+                    
+                    if ":" in part:
+                        p_book = part.split(":")[0].strip()
+                        rem = part.split(":", 1)[1].strip()
+                        if "(" in rem and rem.endswith(")"):
+                            rem_part, note_part = rem.rsplit("(", 1)
+                            p_note = note_part.replace(")", "").strip()
+                            rem = rem_part.strip()
+                        clean_p = rem.replace("p.", "").replace("번", "").strip()
+                        if "~" in clean_p:
+                            p_split = clean_p.split("~")
+                            p_start, p_end = p_split[0].strip(), p_split[1].strip()
+                        else:
+                            if clean_p.isdigit(): p_start = clean_p
+                            else: p_note = rem
+                    
+                    # 하단 폼 안의 컴포넌트 key에 즉시 반영
+                    st.session_state[f"hb_{i}{edit_suffix}"] = p_book
+                    st.session_state[f"h_start_{i}{edit_suffix}"] = p_start
+                    st.session_state[f"h_end_{i}{edit_suffix}"] = p_end
+                    st.session_state[f"h_note_{i}{edit_suffix}"] = p_note
                 
-                # 리셋 처리
                 st.session_state["sb_apply_old_hw_track"] = "선택 안 함"
 
-        # 셀렉트박스 출력
         selected_label = st.selectbox(
             "📥 이전 숙제 불러오기", 
             ["선택 안 함"] + list(hw_options.keys()),
@@ -204,7 +219,6 @@ with tab1:
         )
         
         if selected_label != "선택 안 함":
-            # 클릭 시 스크립트를 리런하여 파서가 데이터를 읽어가도록 보장
             st.button("적용하기", key="btn_apply_old_hw_unique_callback", on_click=apply_old_homework_callback)
         
     no_hw = st.checkbox("✅ 숙제 없음", key="no_hw_check", value=st.session_state.get('edit_no_hw', False))
@@ -215,30 +229,26 @@ with tab1:
             c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
             e_val = st.session_state.get(f"edit_c_val_{i}", "")
             
-            # 초기화 기본값 세팅
             def_book = s_books[0] if s_books else "미등록"
             def_range = ""
             def_total_q = 0
             def_done_q = 0
             
-            # 데이터 분리 파서 (예: "개념원리: p.10~p.20 (15/20)")
             if ":" in e_val:
                 def_book = e_val.split(":")[0].strip()
-                rem_part = e_val.split(":", 1)[1].strip() # "p.10~p.20 (15/20)"
+                rem_part = e_val.split(":", 1)[1].strip()
                 
                 if "(" in rem_part:
-                    def_range = rem_part.split("(")[0].strip() # "p.10~p.20"
-                    score_part = rem_part.rsplit("(", 1)[1].replace(")", "").strip() # "15/20"
+                    def_range = rem_part.split("(")[0].strip()
+                    score_part = rem_part.rsplit("(", 1)[1].replace(")", "").strip()
                     if "/" in score_part:
                         try:
-                            def_done_q = int(score_part.split("/")[0].strip()) # 15
-                            def_total_q = int(score_part.split("/")[1].strip()) # 20
-                        except:
-                            def_done_q, def_total_q = 0, 0
+                            def_done_q = int(score_part.split("/")[0].strip())
+                            def_total_q = int(score_part.split("/")[1].strip())
+                        except: pass
                 else:
                     def_range = rem_part
             
-            # UI 컴포넌트에 파싱된 데이터 주입
             cb = c1.selectbox(f"교재 {i+1}", s_books, index=s_books.index(def_book) if def_book in s_books else 0, key=f"cb_{i}{edit_suffix}")
             cr = c2.text_input(f"범위 {i+1}", value=def_range, key=f"cr_{i}{edit_suffix}")
             ct = c3.number_input(f"총", min_value=0, value=def_total_q, key=f"ct_{i}{edit_suffix}") 
@@ -296,7 +306,6 @@ with tab1:
         next_s = int(all_sessions['session_num'].max() + 1) if not all_sessions.empty else 1
         sess_num = c_n.number_input("회차", value=int(st.session_state.get('edit_session_num', next_s)), key=f"sess_num{edit_suffix}")
         
-        # --- 시간 복원 파서 ---
         c_t1, c_t2 = st.columns(2)
         def_start_t = dt_time(14, 0)
         def_end_t = dt_time(16, 0)
@@ -336,6 +345,7 @@ with tab1:
             curr_end = parsed_h_ends[i] if i < len(parsed_h_ends) else ""
             curr_note = parsed_h_notes[i] if i < len(parsed_h_notes) else ""
             
+            # 💡 버튼 클릭으로 세션 상태가 강제 동기화된 위젯들이 정상 표출됩니다.
             hb = hc1.selectbox(f"교재", s_books, index=s_books.index(curr_hb) if curr_hb in s_books else 0, key=f"hb_{i}{edit_suffix}")
             h_start = hc2.text_input(f"시작(p)", value=curr_start, key=f"h_start_{i}{edit_suffix}", placeholder="12")
             h_end = hc3.text_input(f"끝(p)", value=curr_end, key=f"h_end_{i}{edit_suffix}", placeholder="18")
