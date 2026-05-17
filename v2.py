@@ -97,7 +97,7 @@ def get_date_with_weekday(date_val):
         return str(date_val)
 
 tab1, tab2, tab3, tab4 = st.tabs(["📝 수업 기록/수정", "📊 학습 분석", "📚 교재 관리", "📂 전체 로그"])
-# --- TAB 1: 수업 기록 및 수정 (무한 로딩 + 변수 꼬임 완벽 해결 버전) ---
+# --- TAB 1: 수업 기록 및 수정 (폼 내부 동기화 완벽 해결 버전) ---
 with tab1:
     def safe_int(val):
         try:
@@ -123,77 +123,6 @@ with tab1:
 
     # --- 1. 지난 숙제 채점 섹션 ---
     st.write("### ✍️ 지난 숙제 채점")
-    
-    if not all_sessions.empty:
-        recent_sessions = all_sessions.sort_values(by=['date', 'session_num'], ascending=False).head(2)
-        
-        hw_options = {
-            f"[{int(row['session_num'])}회차] {get_date_with_weekday(row['date'])} : {row['next_hw']}": row['next_hw'] 
-            for _, row in recent_sessions.iterrows()
-        }
-        
-        # 🔥 [완벽 교정된 콜백] 위젯의 State Key에 값을 직접 바인딩하여 강제 동기화
-        def apply_old_homework_callback():
-            target_label = st.session_state.get("sb_apply_old_hw_track")
-            if target_label and target_label != "선택 안 함":
-                actual_hw = hw_options[target_label]
-                hw_parts = actual_hw.split(" | ") if " | " in actual_hw else [actual_hw]
-                
-                # 행 개수 즉시 변경 강제 세팅
-                st.session_state.check_rows = len(hw_parts)
-                st.session_state.h_rows = len(hw_parts)
-                
-                # 순회하며 상·하단 위젯 세션에 강제 주입
-                for i, part in enumerate(hw_parts):
-                    part = part.strip()
-                    st.session_state[f"edit_c_val_{i}"] = part
-                    st.session_state[f"edit_h_val_{i}"] = part
-                    
-                    # 🧩 파서 고도화 : "교재명: p.시작~끝 (비고)" 완벽 해체
-                    p_book = s_books[0] if s_books else "미등록"
-                    p_start, p_end, p_note = "", "", ""
-                    
-                    if ":" in part:
-                        p_book = part.split(":")[0].strip()
-                        rem = part.split(":", 1)[1].strip()
-                        
-                        # 괄호 비고 분리
-                        if "(" in rem and rem.endswith(")"):
-                            rem_part, note_part = rem.rsplit("(", 1)
-                            p_note = note_part.replace(")", "").strip()
-                            rem = rem_part.strip()
-                        
-                        # 불필요 기호 제거
-                        clean_p = rem.replace("p.", "").replace("번", "").strip()
-                        
-                        # 범위 분리
-                        if "~" in clean_p:
-                            p_split = clean_p.split("~")
-                            p_start, p_end = p_split[0].strip(), p_split[1].strip()
-                        else:
-                            if clean_p.isdigit(): 
-                                p_start = clean_p
-                            else: 
-                                p_note = rem
-                    
-                    # 💡 상하단 위젯에 각각 직접적인 State Key 매핑 매커니즘 부여 (화면 갱신 보장)
-                    st.session_state[f"cb_{i}{edit_suffix}"] = p_book
-                    st.session_state[f"hb_{i}{edit_suffix}"] = p_book
-                    st.session_state[f"h_start_{i}{edit_suffix}"] = p_start
-                    st.session_state[f"h_end_{i}{edit_suffix}"] = p_end
-                    st.session_state[f"h_note_{i}{edit_suffix}"] = p_note
-                
-                # 불러오기 완료 후 셀렉트박스 초기화
-                st.session_state["sb_apply_old_hw_track"] = "선택 안 함"
-
-        selected_label = st.selectbox(
-            "📥 이전 숙제 불러오기", 
-            ["선택 안 함"] + list(hw_options.keys()),
-            key="sb_apply_old_hw_track"
-        )
-        
-        if selected_label != "선택 안 함":
-            st.button("적용하기", key="btn_apply_old_hw_unique_callback", on_click=apply_old_homework_callback)
         
     no_hw = st.checkbox("✅ 숙제 없음", key="no_hw_check", value=st.session_state.get('edit_no_hw', False))
     check_list, acc_total, acc_done = [], 0, 0
@@ -223,7 +152,6 @@ with tab1:
                 else:
                     def_range = rem_part
             
-            # 💡 기존 데이터를 주입해 두되, 콜백 실행시 세션 키를 우선하도록 설계
             if f"cb_{i}{edit_suffix}" not in st.session_state:
                 st.session_state[f"cb_{i}{edit_suffix}"] = def_book
 
@@ -277,6 +205,67 @@ with tab1:
 
     # --- 3. 오늘 수업 정보 입력 폼 ---
     with st.form("lesson_form"):
+        st.write("### 📥 이전 숙제 불러오기 (입력 폼 연동)")
+        
+        # 💡 폼 내부로 진입하여 데이터를 완벽하게 주입할 수 있도록 콜백 로직을 재배치했습니다.
+        if not all_sessions.empty:
+            recent_sessions = all_sessions.sort_values(by=['date', 'session_num'], ascending=False).head(2)
+            hw_options = {
+                f"[{int(row['session_num'])}회차] {get_date_with_weekday(row['date'])} : {row['next_hw']}": row['next_hw'] 
+                for _, row in recent_sessions.iterrows()
+            }
+            
+            def apply_old_homework_callback():
+                target_label = st.session_state.get("sb_apply_old_hw_track")
+                if target_label and target_label != "선택 안 함":
+                    actual_hw = hw_options[target_label]
+                    hw_parts = actual_hw.split(" | ") if " | " in actual_hw else [actual_hw]
+                    
+                    st.session_state.check_rows = len(hw_parts)
+                    st.session_state.h_rows = len(hw_parts)
+                    
+                    for i, part in enumerate(hw_parts):
+                        part = part.strip()
+                        st.session_state[f"edit_c_val_{i}"] = part
+                        st.session_state[f"edit_h_val_{i}"] = part
+                        
+                        p_book = s_books[0] if s_books else "미등록"
+                        p_start, p_end, p_note = "", "", ""
+                        
+                        if ":" in part:
+                            p_book = part.split(":")[0].strip()
+                            rem = part.split(":", 1)[1].strip()
+                            if "(" in rem and rem.endswith(")"):
+                                rem_part, note_part = rem.rsplit("(", 1)
+                                p_note = note_part.replace(")", "").strip()
+                                rem = rem_part.strip()
+                            clean_p = rem.replace("p.", "").replace("번", "").strip()
+                            if "~" in clean_p:
+                                p_split = clean_p.split("~")
+                                p_start, p_end = p_split[0].strip(), p_split[1].strip()
+                            else:
+                                if clean_p.isdigit(): p_start = clean_p
+                                else: p_note = rem
+                        
+                        st.session_state[f"cb_{i}{edit_suffix}"] = p_book
+                        st.session_state[f"hb_{i}{edit_suffix}"] = p_book
+                        st.session_state[f"h_start_{i}{edit_suffix}"] = p_start
+                        st.session_state[f"h_end_{i}{edit_suffix}"] = p_end
+                        st.session_state[f"h_note_{i}{edit_suffix}"] = p_note
+                    
+                    st.session_state["sb_apply_old_hw_track"] = "선택 안 함"
+
+            selected_label = st.selectbox(
+                "가져올 지난 회차 숙제를 선택하세요", 
+                ["선택 안 함"] + list(hw_options.keys()),
+                key="sb_apply_old_hw_track"
+            )
+            if selected_label != "선택 안 함":
+                st.form_submit_button("📥 숙제 데이터 채워넣기", on_click=apply_old_homework_callback)
+        else:
+            st.caption("불러올 이전 수업 기록이 없습니다.")
+
+        st.divider()
         st.write("### 📖 오늘 수업 정보")
         c_d, c_n = st.columns(2)
         d_val = datetime.strptime(st.session_state.edit_date, "%Y-%m-%d") if is_edit_mode else datetime.now()
@@ -318,7 +307,6 @@ with tab1:
             st.markdown(f"**📍 숙제 {i+1}**")
             hc1, hc2, hc3, hc4 = st.columns([2, 1, 1, 3])
             
-            # 세션 키가 없으면 안전하게 초기화
             if f"hb_{i}{edit_suffix}" not in st.session_state:
                 st.session_state[f"hb_{i}{edit_suffix}"] = s_books[0] if s_books else "미등록"
             if f"h_start_{i}{edit_suffix}" not in st.session_state:
@@ -333,26 +321,16 @@ with tab1:
             h_end = hc3.text_input(f"끝(p)", key=f"h_end_{i}{edit_suffix}", placeholder="18").strip()
             h_note = hc4.text_input(f"비고/코멘트", key=f"h_note_{i}{edit_suffix}", placeholder="홀수만").strip()
             
-            # 🔥 [버그 수정] 각 행(i)마다 문자열이 독립적으로 깨끗하게 생성되도록 보장
             if hb and (h_start or h_end or h_note):
-                # 숫자가 입력되었을 때만 p. 붙이기
                 prefix = "p." if (h_start.isdigit() or h_end.isdigit()) else ""
-                
-                # 1. 시작 페이지 구성
                 page_str = f"{prefix}{h_start}" if h_start else ""
-                
-                # 2. 끝 페이지 구성
                 if h_end: 
-                    if page_str: 
-                        page_str += f"~{h_end}"
-                    else: 
-                        page_str = f"{prefix}~{h_end}"
+                    if page_str: page_str += f"~{h_end}"
+                    else: page_str = f"{prefix}~{h_end}"
                 
-                # 💡 [핵심 교정] 현재 행에 실제 페이지 번호가 존재할 때만 '번' 접미사를 검사 및 추가합니다.
-                # 이전 루프나 다른 칸의 영향을 받지 않도록 엄격하게 가두었습니다.
+                # '번' 복사 현상 해결 구속조건 추가
                 if page_str and ("번" not in page_str):
                     if any(x in hb for x in ["쎈", "라이트쎈", "RPM", "플러스"]):
-                        # 단, 이미 범위에 'p.'가 제대로 붙어있고 페이지 숫자가 유효할 때만 '번' 추가
                         page_str += "번"
                 
                 note_str = f" ({h_note})" if h_note else ""
@@ -360,7 +338,7 @@ with tab1:
 
         fback = st.text_area("피드백", value=st.session_state.get('edit_feedback', ""), key=f"fb_text{edit_suffix}")
         
-        if st.form_submit_button("💾 저장하기"):
+        if st.form_submit_button("💾 이 대로 최종 저장하기"):
             dur = (datetime.combine(date_in, end_t) - datetime.combine(date_in, start_t)).seconds // 60
             new_id = int(st.session_state.edit_id) if is_edit_mode else (int(df_se['id'].max()+1) if not df_se.empty else 1)
             new_row = {
