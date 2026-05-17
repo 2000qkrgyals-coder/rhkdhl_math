@@ -178,21 +178,21 @@ with tab1:
         }
         
         # 💡 [콜백 엔지니어링] 무한 루프 차단 및 데이터 동기화 즉시 반영 함수
+       # 💡 [콜백 엔지니어링] 다음 숙제 칸 침범 문제를 해결한 채점 전용 콜백 함수
         def apply_old_homework_callback():
             target_label = st.session_state.get("sb_apply_old_hw_track")
             if target_label and target_label != "선택 안 함":
                 actual_hw = hw_options[target_label]
                 hw_parts = actual_hw.split(" | ") if " | " in actual_hw else [actual_hw]
                     
-                # 동적 행 수 맞춤 및 세션 주입 (첫 칸 유실 방지)
+                # 1. 오직 채점 행(check_rows)의 개수만 맞춥니다. (다음 숙제 h_rows는 건드리지 않음)
                 st.session_state.check_rows = len(hw_parts)
-                st.session_state.h_rows = len(hw_parts)
                 
+                # 2. 채점용 데이터 세션에만 값을 주입합니다.
                 for i, part in enumerate(hw_parts): 
                     st.session_state[f"edit_c_val_{i}"] = part.strip()
-                    st.session_state[f"edit_h_val_{i}"] = part.strip()
                     
-                    # 수동 컴포넌트 강제 동기화로 값 씹힘 차단
+                    # 채점 UI 컴포넌트 강제 동기화 데이터 파싱
                     raw_val = part.strip()
                     if ":" in raw_val:
                         p_book = raw_val.split(":")[0].strip()
@@ -205,16 +205,15 @@ with tab1:
                                 try:
                                     p_done = int(p_score.split("/")[0].strip())
                                     p_total = int(p_score.split("/")[1].strip())
-                                # 정수 형변환 예외 방어
                                 except ValueError: pass 
                         
-                        # 컴포넌트 State 강제 업데이트
+                        # 채점 컴포넌트 State만 업데이트
                         st.session_state[f"cb_{i}{edit_suffix}"] = p_book
                         st.session_state[f"cr_{i}{edit_suffix}"] = p_range
                         st.session_state[f"ct_{i}{edit_suffix}"] = p_total
                         st.session_state[f"cd_{i}{edit_suffix}"] = p_done
                 
-                # 원천 차단: 자동 리셋
+                # 불러오기가 끝나면 셀렉트박스를 자동으로 "선택 안 함"으로 리셋
                 st.session_state["sb_apply_old_hw_track"] = "선택 안 함"
 
         # 셀렉트박스 출력
