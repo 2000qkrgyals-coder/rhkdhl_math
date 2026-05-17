@@ -318,7 +318,7 @@ with tab1:
             st.markdown(f"**📍 숙제 {i+1}**")
             hc1, hc2, hc3, hc4 = st.columns([2, 1, 1, 3])
             
-            # 세션에 불러온 초기 키값이 없을 때만 빈 문자열로 안전 선언
+            # 세션 키가 없으면 안전하게 초기화
             if f"hb_{i}{edit_suffix}" not in st.session_state:
                 st.session_state[f"hb_{i}{edit_suffix}"] = s_books[0] if s_books else "미등록"
             if f"h_start_{i}{edit_suffix}" not in st.session_state:
@@ -328,20 +328,33 @@ with tab1:
             if f"h_note_{i}{edit_suffix}" not in st.session_state:
                 st.session_state[f"h_note_{i}{edit_suffix}"] = ""
             
-            # 💡 value 속성을 가차없이 배제하고 key와 대치시킴으로써 강제 변경을 수용하게 함
             hb = hc1.selectbox(f"교재", s_books, key=f"hb_{i}{edit_suffix}")
-            h_start = hc2.text_input(f"시작(p)", key=f"h_start_{i}{edit_suffix}", placeholder="12")
-            h_end = hc3.text_input(f"끝(p)", key=f"h_end_{i}{edit_suffix}", placeholder="18")
-            h_note = hc4.text_input(f"비고/코멘트", key=f"h_note_{i}{edit_suffix}", placeholder="홀수만")
+            h_start = hc2.text_input(f"시작(p)", key=f"h_start_{i}{edit_suffix}", placeholder="12").strip()
+            h_end = hc3.text_input(f"끝(p)", key=f"h_end_{i}{edit_suffix}", placeholder="18").strip()
+            h_note = hc4.text_input(f"비고/코멘트", key=f"h_note_{i}{edit_suffix}", placeholder="홀수만").strip()
             
+            # 🔥 [버그 수정] 각 행(i)마다 문자열이 독립적으로 깨끗하게 생성되도록 보장
             if hb and (h_start or h_end or h_note):
+                # 숫자가 입력되었을 때만 p. 붙이기
                 prefix = "p." if (h_start.isdigit() or h_end.isdigit()) else ""
+                
+                # 1. 시작 페이지 구성
                 page_str = f"{prefix}{h_start}" if h_start else ""
+                
+                # 2. 끝 페이지 구성
                 if h_end: 
-                    if page_str: page_str += f"~{h_end}"
-                    else: page_str = f"{prefix}~{h_end}"
-                if ("번" not in page_str) and (any(x in hb for x in ["쎈", "라이트쎈", "RPM", "플러스"])):
-                    if page_str: page_str += "번"
+                    if page_str: 
+                        page_str += f"~{h_end}"
+                    else: 
+                        page_str = f"{prefix}~{h_end}"
+                
+                # 💡 [핵심 교정] 현재 행에 실제 페이지 번호가 존재할 때만 '번' 접미사를 검사 및 추가합니다.
+                # 이전 루프나 다른 칸의 영향을 받지 않도록 엄격하게 가두었습니다.
+                if page_str and ("번" not in page_str):
+                    if any(x in hb for x in ["쎈", "라이트쎈", "RPM", "플러스"]):
+                        # 단, 이미 범위에 'p.'가 제대로 붙어있고 페이지 숫자가 유효할 때만 '번' 추가
+                        page_str += "번"
+                
                 note_str = f" ({h_note})" if h_note else ""
                 h_list.append(f"{hb}: {page_str}{note_str}".strip())
 
