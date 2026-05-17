@@ -97,7 +97,7 @@ def get_date_with_weekday(date_val):
         return str(date_val)
 
 tab1, tab2, tab3, tab4 = st.tabs(["📝 수업 기록/수정", "📊 학습 분석", "📚 교재 관리", "📂 전체 로그"])
-# --- TAB 1: 수업 기록 및 수정 (채점 UI 개조 + 페이지 자동 계산 버전) ---
+# --- TAB 1: 수업 기록 및 수정 (첫 행 유실 버그 완벽 해결 버전) ---
 with tab1:
     def safe_int(val):
         try:
@@ -127,78 +127,8 @@ with tab1:
     if col_reset.button("🔄 내용 초기화", key="btn_full_reset"): 
         full_reset()
 
-    # --- [전역 파서 1] 지난 숙제 채점용 데이터(hw_detail) 분리 처리 ---
-    parsed_c_books, parsed_c_starts, parsed_c_ends, parsed_c_notes, parsed_c_dones = [], [], [], [], []
-    for i in range(st.session_state.check_rows):
-        e_c = st.session_state.get(f"edit_c_val_{i}", "")
-        def_cb = s_books[0] if s_books else "미등록"
-        def_c_start, def_c_end, def_c_note, def_c_done = "", "", "", 0
-        
-        if ":" in e_c:
-            def_cb = e_c.split(":")[0].strip()
-            rem = e_c.split(":")[1].strip().replace("p.", "")
-            
-            # 맞은 문항수 (done) 분리 -> 예: "10~20 (15/11)" 또는 "10~20 (15)" 등의 형태 방어
-            if "(" in rem:
-                page_part, score_part = rem.split("(", 1)
-                score_part = score_part.replace(")", "").strip()
-                page_part = page_part.strip()
-                
-                # 만약 기존 데이터에 슬래시(/)가 있다면 푼 개수 추출
-                if "/" in score_part:
-                    try: def_c_done = int(score_part.split("/")[0].strip())
-                    except: def_c_done = 0
-                else:
-                    # 슬래시가 없고 비고 코멘트만 들어있던 경우
-                    def_c_note = score_part
-            else:
-                page_part = rem.strip()
-            
-            # 페이지 파싱
-            clean_page = page_part.replace("번", "").strip()
-            if "~" in clean_page:
-                p_split = clean_page.split("~")
-                def_c_start, def_c_end = p_split[0].strip(), p_split[1].strip()
-            else:
-                if clean_page.isdigit(): def_c_start = clean_page
-                else: def_c_note = page_part
-                
-        parsed_c_books.append(def_cb)
-        parsed_c_starts.append(def_c_start)
-        parsed_c_ends.append(def_c_end)
-        parsed_c_notes.append(def_c_note)
-        parsed_c_dones.append(def_c_done)
-
-    # --- [전역 파서 2] 다음 숙제(next_hw) 가변 행 데이터 분리 처리 ---
-    parsed_h_books, parsed_h_starts, parsed_h_ends, parsed_h_notes = [], [], [], []
-    for i in range(st.session_state.h_rows):
-        e_h = st.session_state.get(f"edit_h_val_{i}", "")
-        def_hb = s_books[0] if s_books else "미등록"
-        def_start, def_end, def_note = "", "", ""
-        
-        if ":" in e_h:
-            def_hb = e_h.split(":")[0].strip()
-            rem = e_h.split(":")[1].strip().replace("p.", "")
-            if "(" in rem:
-                page_part, note_part = rem.split("(", 1)
-                def_note = note_part.replace(")", "").strip()
-                page_part = page_part.strip()
-            else:
-                page_part = rem.strip()
-            
-            clean_page = page_part.replace("번", "").strip()
-            if "~" in clean_page:
-                p_split = clean_page.split("~")
-                def_start, def_end = p_split[0].strip(), p_split[1].strip()
-            else:
-                if clean_page.isdigit(): def_start = clean_page
-                else: def_note = page_part
-                    
-        parsed_h_books.append(def_hb)
-        parsed_h_starts.append(def_start)
-        parsed_h_ends.append(def_end)
-        parsed_h_notes.append(def_note)
-
+    # 💡 [구조 개조] 기존의 불안정한 전역 파서 1, 2를 모두 제거하고 
+    # 컴포넌트 내부에서 세션 상태를 직접 안전하게 파싱하도록 설계 변경했습니다.
 
     # --- 1. 지난 숙제 채점 섹션 ---
     st.write("### ✍️ 지난 숙제 채점")
@@ -210,18 +140,44 @@ with tab1:
             for _, row in recent_sessions.iterrows()
         }
         
-        # 💡 [콜백] 다음 숙제 칸을 오염시키지 않고 오직 채점 칸 데이터만 불러오는 안전 함수
+        # 💡 [콜백 엔지니어링] 불러온 문자열을 즉시 개별 세션 데이터로 조각내어 저장하는 완벽한 분할 주입
         def apply_old_homework_callback():
             target_label = st.session_state.get("sb_apply_old_hw_track")
             if target_label and target_label != "선택 안 함":
                 actual_hw = hw_options[target_label]
                 hw_parts = actual_hw.split(" | ") if " | " in actual_hw else [actual_hw]
                     
-                # 오직 채점 행(check_rows)만 이전 숙제 개수만큼 바인딩
                 st.session_state.check_rows = len(hw_parts)
                 
+                # 원본 문자열을 파싱하여 개별 상태값에 선행 주입 (컴포넌트 덮어쓰기 방지)
                 for i, part in enumerate(hw_parts): 
                     st.session_state[f"edit_c_val_{i}"] = part.strip()
+                    
+                    # 미리 쪼개서 세션에 보관
+                    raw_val = part.strip()
+                    cb_val, start_val, end_val, note_val = (s_books[0] if s_books else "미등록"), "", "", ""
+                    if ":" in raw_val:
+                        cb_val = raw_val.split(":")[0].strip()
+                        rem = raw_val.split(":")[1].strip().replace("p.", "")
+                        if "(" in rem:
+                            page_part, note_part = rem.split("(", 1)
+                            note_val = note_part.replace(")", "").strip()
+                            page_part = page_part.strip()
+                        else:
+                            page_part = rem.strip()
+                        
+                        clean_page = page_part.replace("번", "").strip()
+                        if "~" in clean_page:
+                            p_split = clean_page.split("~")
+                            start_val, end_val = p_split[0].strip(), p_split[1].strip()
+                        else:
+                            if clean_page.isdigit(): start_val = clean_page
+                            else: note_val = page_part
+                    
+                    st.session_state[f"inner_c_book_{i}"] = cb_val
+                    st.session_state[f"inner_c_start_{i}"] = start_val
+                    st.session_state[f"inner_c_end_{i}"] = end_val
+                    st.session_state[f"inner_c_note_{i}"] = note_val
                 
                 st.session_state["sb_apply_old_hw_track"] = "선택 안 함"
 
@@ -237,30 +193,53 @@ with tab1:
     check_list, acc_total, acc_done = [], 0, 0
     
     if not no_hw:
-        # 💡 개조 포인트: 다음 숙제 입력폼과 완벽히 대칭되는 UI 레이아웃 구성
         for i in range(st.session_state.check_rows):
             st.markdown(f"**📝 채점 {i+1}**")
             cc1, cc2, cc3, cc4, cc5, cc6 = st.columns([2, 1, 1, 2, 1, 1])
             
-            curr_cb = parsed_c_books[i] if i < len(parsed_c_books) else (s_books[0] if s_books else "미등록")
-            curr_c_start = parsed_c_starts[i] if i < len(parsed_c_starts) else ""
-            curr_c_end = parsed_c_ends[i] if i < len(parsed_c_ends) else ""
-            curr_c_note = parsed_c_notes[i] if i < len(parsed_c_notes) else ""
-            curr_c_done = parsed_c_dones[i] if i < len(parsed_c_dones) else 0
+            # 콜백이나 수정모드에서 쪼개둔 데이터가 있다면 먼저 들고 오고, 없으면 일반 파싱 진행
+            e_c = st.session_state.get(f"edit_c_val_{i}", "")
+            curr_cb = st.session_state.get(f"inner_c_book_{i}", (s_books[0] if s_books else "미등록"))
+            curr_c_start = st.session_state.get(f"inner_c_start_{i}", "")
+            curr_c_end = st.session_state.get(f"inner_c_end_{i}", "")
+            curr_c_note = st.session_state.get(f"inner_c_note_{i}", "")
+            curr_c_done = 0
             
-            # UI 컴포넌트 배치 (교재, 시작, 끝, 비고)
+            if e_c and not st.session_state.get(f"inner_c_book_{i}"):
+                if ":" in e_c:
+                    curr_cb = e_c.split(":")[0].strip()
+                    rem = e_c.split(":")[1].strip().replace("p.", "")
+                    if "(" in rem:
+                        page_part, score_part = rem.split("(", 1)
+                        score_part = score_part.replace(")", "").strip()
+                        page_part = page_part.strip()
+                        if "/" in score_part:
+                            try: curr_c_done = int(score_part.split("/")[0].strip())
+                            except: pass
+                        else: curr_c_note = score_part
+                    else:
+                        page_part = rem.strip()
+                    
+                    clean_page = page_part.replace("번", "").strip()
+                    if "~" in clean_page:
+                        p_split = clean_page.split("~")
+                        curr_c_start, curr_c_end = p_split[0].strip(), p_split[1].strip()
+                    else:
+                        if clean_page.isdigit(): curr_c_start = clean_page
+                        else: curr_c_note = page_part
+
+            # UI 컴포넌트 배치
             b_idx = s_books.index(curr_cb) if curr_cb in s_books else 0
             cb = cc1.selectbox(f"교재", s_books, index=b_idx, key=f"cb_{i}{edit_suffix}")
             c_start = cc2.text_input(f"시작(p)", value=curr_c_start, key=f"c_start_{i}{edit_suffix}")
             c_end = cc3.text_input(f"끝(p)", value=curr_c_end, key=f"c_end_{i}{edit_suffix}")
             c_note = cc4.text_input(f"비고/코멘트", value=curr_c_note, key=f"c_note_{i}{edit_suffix}")
             
-            # 💡 자동 계산 로직: 끝 페이지와 시작 페이지가 모두 숫자일 때 (끝 - 시작 + 1) 자동 계산
+            # 자동 페이지 수 계산 (끝 - 시작 + 1)
             auto_total = 0
             if c_start.isdigit() and c_end.isdigit():
                 auto_total = max(0, int(c_end) - int(c_start) + 1)
             
-            # 총 문항수(자동 계산 값 반영) 및 푼 문항수 입력받기
             ct = cc5.number_input(f"총", min_value=0, value=auto_total, key=f"ct_{i}{edit_suffix}")
             cd = cc6.number_input(f"푼", min_value=0, value=int(curr_c_done), key=f"cd_{i}{edit_suffix}")
             
@@ -271,13 +250,10 @@ with tab1:
                     if page_str: page_str += f"~{c_end}"
                     else: page_str = f"{prefix}~{c_end}"
                 
-                # '번' 중복 추가 제어
                 if ("번" not in page_str) and (any(x in cb for x in ["쎈", "라이트쎈", "RPM", "플러스"])):
                     if page_str and not page_str.endswith("번"): page_str += "번"
                     
                 note_str = f" ({c_note})" if c_note else ""
-                
-                # 최종 DB 저장 포맷 통합형태 빌드: "교재: 범위 (푼/총)"
                 check_list.append(f"{cb}: {page_str}{note_str} ({cd}/{ct})")
                 acc_total += ct
                 acc_done += cd
@@ -371,10 +347,28 @@ with tab1:
             st.markdown(f"**📍 숙제 {i+1}**")
             hc1, hc2, hc3, hc4 = st.columns([2, 1, 1, 3])
             
-            curr_hb = parsed_h_books[i] if i < len(parsed_h_books) else (s_books[0] if s_books else "미등록")
-            curr_start = parsed_h_starts[i] if i < len(parsed_h_starts) else ""
-            curr_end = parsed_h_ends[i] if i < len(parsed_h_ends) else ""
-            curr_note = parsed_h_notes[i] if i < len(parsed_h_notes) else ""
+            # 다음 숙제 인라인 세션 안전 파싱
+            e_h = st.session_state.get(f"edit_h_val_{i}", "")
+            curr_hb = s_books[0] if s_books else "미등록"
+            curr_start, curr_end, curr_note = "", "", ""
+            
+            if e_h and ":" in e_h:
+                curr_hb = e_h.split(":")[0].strip()
+                rem = e_h.split(":")[1].strip().replace("p.", "")
+                if "(" in rem:
+                    page_part, note_part = rem.split("(", 1)
+                    curr_note = note_part.replace(")", "").strip()
+                    page_part = page_part.strip()
+                else:
+                    page_part = rem.strip()
+                
+                clean_page = page_part.replace("번", "").strip()
+                if "~" in clean_page:
+                    p_split = clean_page.split("~")
+                    curr_start, curr_end = p_split[0].strip(), p_split[1].strip()
+                else:
+                    if clean_page.isdigit(): curr_start = clean_page
+                    else: curr_note = page_part
             
             h_idx = s_books.index(curr_hb) if curr_hb in s_books else 0
             hb = hc1.selectbox(f"교재", s_books, index=h_idx, key=f"hb_{i}{edit_suffix}")
