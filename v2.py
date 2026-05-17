@@ -14,7 +14,7 @@ if 'logged_in' not in st.session_state:
 
 def login_screen():
     st.title("🔒 Tutor Pro Access")
-    pwd = st.text_input("비밀번호를 입력하세요", type="password")
+    pwd = st.text_input("마스터 비밀번호를 입력하세요", type="password")
     if st.button("로그인"):
         if pwd == MASTER_PASSWORD:
             st.session_state.logged_in = True
@@ -97,7 +97,7 @@ def get_date_with_weekday(date_val):
         return str(date_val)
 
 tab1, tab2, tab3, tab4 = st.tabs(["📝 수업 기록/수정", "📊 학습 분석", "📚 교재 관리", "📂 전체 로그"])
-# --- TAB 1: 수업 기록 및 수정 (첫 행 유실 버그 완벽 해결 버전) ---
+# --- TAB 1: 수업 기록 및 수정 (컴포넌트 Key 직주입 방식 - 첫 행 유실 완벽 해결) ---
 with tab1:
     def safe_int(val):
         try:
@@ -127,9 +127,6 @@ with tab1:
     if col_reset.button("🔄 내용 초기화", key="btn_full_reset"): 
         full_reset()
 
-    # 💡 [구조 개조] 기존의 불안정한 전역 파서 1, 2를 모두 제거하고 
-    # 컴포넌트 내부에서 세션 상태를 직접 안전하게 파싱하도록 설계 변경했습니다.
-
     # --- 1. 지난 숙제 채점 섹션 ---
     st.write("### ✍️ 지난 숙제 채점")
     
@@ -140,7 +137,7 @@ with tab1:
             for _, row in recent_sessions.iterrows()
         }
         
-        # 💡 [콜백 엔지니어링] 불러온 문자열을 즉시 개별 세션 데이터로 조각내어 저장하는 완벽한 분할 주입
+        # 💡 [핵심 개조 콜백] 컴포넌트의 실제 key값에 직접 값을 파싱해서 강제 이식합니다.
         def apply_old_homework_callback():
             target_label = st.session_state.get("sb_apply_old_hw_track")
             if target_label and target_label != "선택 안 함":
@@ -149,20 +146,23 @@ with tab1:
                     
                 st.session_state.check_rows = len(hw_parts)
                 
-                # 원본 문자열을 파싱하여 개별 상태값에 선행 주입 (컴포넌트 덮어쓰기 방지)
                 for i, part in enumerate(hw_parts): 
-                    st.session_state[f"edit_c_val_{i}"] = part.strip()
-                    
-                    # 미리 쪼개서 세션에 보관
                     raw_val = part.strip()
-                    cb_val, start_val, end_val, note_val = (s_books[0] if s_books else "미등록"), "", "", ""
+                    cb_val, start_val, end_val, note_val, done_val = (s_books[0] if s_books else "미등록"), "", "", "", 0
+                    
                     if ":" in raw_val:
                         cb_val = raw_val.split(":")[0].strip()
                         rem = raw_val.split(":")[1].strip().replace("p.", "")
+                        
                         if "(" in rem:
-                            page_part, note_part = rem.split("(", 1)
-                            note_val = note_part.replace(")", "").strip()
+                            page_part, score_part = rem.split("(", 1)
+                            score_part = score_part.replace(")", "").strip()
                             page_part = page_part.strip()
+                            
+                            if "/" in score_part:
+                                try: done_val = int(score_part.split("/")[0].strip())
+                                except: pass
+                            else: note_val = score_part
                         else:
                             page_part = rem.strip()
                         
@@ -174,10 +174,12 @@ with tab1:
                             if clean_page.isdigit(): start_val = clean_page
                             else: note_val = page_part
                     
-                    st.session_state[f"inner_c_book_{i}"] = cb_val
-                    st.session_state[f"inner_c_start_{i}"] = start_val
-                    st.session_state[f"inner_c_end_{i}"] = end_val
-                    st.session_state[f"inner_c_note_{i}"] = note_val
+                    # 💡 UI 컴포넌트가 참조할 Key에 State 값을 다이렉트로 강제 주입 (첫 줄 날아가는 현상 완벽 방어)
+                    st.session_state[f"cb_{i}{edit_suffix}"] = cb_val
+                    st.session_state[f"c_start_{i}{edit_suffix}"] = start_val
+                    st.session_state[f"c_end_{i}{edit_suffix}"] = end_val
+                    st.session_state[f"c_note_{i}{edit_suffix}"] = note_val
+                    st.session_state[f"cd_{i}{edit_suffix}"] = done_val
                 
                 st.session_state["sb_apply_old_hw_track"] = "선택 안 함"
 
@@ -197,51 +199,59 @@ with tab1:
             st.markdown(f"**📝 채점 {i+1}**")
             cc1, cc2, cc3, cc4, cc5, cc6 = st.columns([2, 1, 1, 2, 1, 1])
             
-            # 콜백이나 수정모드에서 쪼개둔 데이터가 있다면 먼저 들고 오고, 없으면 일반 파싱 진행
+            # 수정 모드(과거 기록 편집 클릭) 시 데이터 백업 파싱 로직
             e_c = st.session_state.get(f"edit_c_val_{i}", "")
-            curr_cb = st.session_state.get(f"inner_c_book_{i}", (s_books[0] if s_books else "미등록"))
-            curr_c_start = st.session_state.get(f"inner_c_start_{i}", "")
-            curr_c_end = st.session_state.get(f"inner_c_end_{i}", "")
-            curr_c_note = st.session_state.get(f"inner_c_note_{i}", "")
-            curr_c_done = 0
-            
-            if e_c and not st.session_state.get(f"inner_c_book_{i}"):
+            if e_c and f"cb_{i}{edit_suffix}" not in st.session_state:
+                cb_init, start_init, end_init, note_init, done_init = (s_books[0] if s_books else "미등록"), "", "", "", 0
                 if ":" in e_c:
-                    curr_cb = e_c.split(":")[0].strip()
+                    cb_init = e_c.split(":")[0].strip()
                     rem = e_c.split(":")[1].strip().replace("p.", "")
                     if "(" in rem:
                         page_part, score_part = rem.split("(", 1)
                         score_part = score_part.replace(")", "").strip()
                         page_part = page_part.strip()
                         if "/" in score_part:
-                            try: curr_c_done = int(score_part.split("/")[0].strip())
+                            try: done_init = int(score_part.split("/")[0].strip())
                             except: pass
-                        else: curr_c_note = score_part
+                        else: note_init = score_part
                     else:
                         page_part = rem.strip()
                     
                     clean_page = page_part.replace("번", "").strip()
                     if "~" in clean_page:
                         p_split = clean_page.split("~")
-                        curr_c_start, curr_c_end = p_split[0].strip(), p_split[1].strip()
+                        start_init, end_init = p_split[0].strip(), p_split[1].strip()
                     else:
-                        if clean_page.isdigit(): curr_c_start = clean_page
-                        else: curr_c_note = page_part
+                        if clean_page.isdigit(): start_init = clean_page
+                        else: note_init = page_part
+                
+                st.session_state[f"cb_{i}{edit_suffix}"] = cb_init
+                st.session_state[f"c_start_{i}{edit_suffix}"] = start_init
+                st.session_state[f"c_end_{i}{edit_suffix}"] = end_init
+                st.session_state[f"c_note_{i}{edit_suffix}"] = note_init
+                st.session_state[f"cd_{i}{edit_suffix}"] = done_init
 
-            # UI 컴포넌트 배치
-            b_idx = s_books.index(curr_cb) if curr_cb in s_books else 0
+            # 세션에 기록된 상태가 있으면 가져오고 없으면 기본값 바인딩
+            v_cb = st.session_state.get(f"cb_{i}{edit_suffix}", (s_books[0] if s_books else "미등록"))
+            v_start = st.session_state.get(f"c_start_{i}{edit_suffix}", "")
+            v_end = st.session_state.get(f"c_end_{i}{edit_suffix}", "")
+            v_note = st.session_state.get(f"c_note_{i}{edit_suffix}", "")
+            v_done = st.session_state.get(f"cd_{i}{edit_suffix}", 0)
+
+            # UI 컴포넌트 매핑 (value 속성을 세션 값으로 완전 고정)
+            b_idx = s_books.index(v_cb) if v_cb in s_books else 0
             cb = cc1.selectbox(f"교재", s_books, index=b_idx, key=f"cb_{i}{edit_suffix}")
-            c_start = cc2.text_input(f"시작(p)", value=curr_c_start, key=f"c_start_{i}{edit_suffix}")
-            c_end = cc3.text_input(f"끝(p)", value=curr_c_end, key=f"c_end_{i}{edit_suffix}")
-            c_note = cc4.text_input(f"비고/코멘트", value=curr_c_note, key=f"c_note_{i}{edit_suffix}")
+            c_start = cc2.text_input(f"시작(p)", value=v_start, key=f"c_start_{i}{edit_suffix}")
+            c_end = cc3.text_input(f"끝(p)", value=v_end, key=f"c_end_{i}{edit_suffix}")
+            c_note = cc4.text_input(f"비고/코멘트", value=v_note, key=f"c_note_{i}{edit_suffix}")
             
-            # 자동 페이지 수 계산 (끝 - 시작 + 1)
+            # 페이지 수 자동 계산 수식 활성화
             auto_total = 0
             if c_start.isdigit() and c_end.isdigit():
                 auto_total = max(0, int(c_end) - int(c_start) + 1)
             
             ct = cc5.number_input(f"총", min_value=0, value=auto_total, key=f"ct_{i}{edit_suffix}")
-            cd = cc6.number_input(f"푼", min_value=0, value=int(curr_c_done), key=f"cd_{i}{edit_suffix}")
+            cd = cc6.number_input(f"푼", min_value=0, value=int(v_done), key=f"cd_{i}{edit_suffix}")
             
             if cb and (c_start or c_end or c_note):
                 prefix = "p." if (c_start.isdigit() or c_end.isdigit()) else ""
@@ -347,34 +357,43 @@ with tab1:
             st.markdown(f"**📍 숙제 {i+1}**")
             hc1, hc2, hc3, hc4 = st.columns([2, 1, 1, 3])
             
-            # 다음 숙제 인라인 세션 안전 파싱
+            # 다음 숙제 인라인 컴포넌트 고유 키 세션 바인딩 및 파싱 고도화
             e_h = st.session_state.get(f"edit_h_val_{i}", "")
-            curr_hb = s_books[0] if s_books else "미등록"
-            curr_start, curr_end, curr_note = "", "", ""
-            
-            if e_h and ":" in e_h:
-                curr_hb = e_h.split(":")[0].strip()
-                rem = e_h.split(":")[1].strip().replace("p.", "")
-                if "(" in rem:
-                    page_part, note_part = rem.split("(", 1)
-                    curr_note = note_part.replace(")", "").strip()
-                    page_part = page_part.strip()
-                else:
-                    page_part = rem.strip()
+            if e_h and f"hb_{i}{edit_suffix}" not in st.session_state:
+                hb_init, h_start_init, h_end_init, h_note_init = (s_books[0] if s_books else "미등록"), "", "", ""
+                if ":" in e_h:
+                    hb_init = e_h.split(":")[0].strip()
+                    rem = e_h.split(":")[1].strip().replace("p.", "")
+                    if "(" in rem:
+                        page_part, note_part = rem.split("(", 1)
+                        h_note_init = note_part.replace(")", "").strip()
+                        page_part = page_part.strip()
+                    else:
+                        page_part = rem.strip()
+                    
+                    clean_page = page_part.replace("번", "").strip()
+                    if "~" in clean_page:
+                        p_split = clean_page.split("~")
+                        h_start_init, h_end_init = p_split[0].strip(), p_split[1].strip()
+                    else:
+                        if clean_page.isdigit(): h_start_init = clean_page
+                        else: h_note_init = page_part
                 
-                clean_page = page_part.replace("번", "").strip()
-                if "~" in clean_page:
-                    p_split = clean_page.split("~")
-                    curr_start, curr_end = p_split[0].strip(), p_split[1].strip()
-                else:
-                    if clean_page.isdigit(): curr_start = clean_page
-                    else: curr_note = page_part
-            
-            h_idx = s_books.index(curr_hb) if curr_hb in s_books else 0
+                st.session_state[f"hb_{i}{edit_suffix}"] = hb_init
+                st.session_state[f"h_start_{i}{edit_suffix}"] = h_start_init
+                st.session_state[f"h_end_{i}{edit_suffix}"] = h_end_init
+                st.session_state[f"h_note_{i}{edit_suffix}"] = h_note_init
+
+            v_hb = st.session_state.get(f"hb_{i}{edit_suffix}", (s_books[0] if s_books else "미등록"))
+            v_hstart = st.session_state.get(f"h_start_{i}{edit_suffix}", "")
+            v_hend = st.session_state.get(f"h_end_{i}{edit_suffix}", "")
+            v_hnote = st.session_state.get(f"h_note_{i}{edit_suffix}", "")
+
+            h_idx = s_books.index(v_hb) if v_hb in s_books else 0
             hb = hc1.selectbox(f"교재", s_books, index=h_idx, key=f"hb_{i}{edit_suffix}")
-            h_start = hc2.text_input(f"시작(p)", value=curr_start, key=f"h_start_{i}{edit_suffix}", placeholder="12")
-            h_end = hc3.text_input(f"끝(p)", value=curr_end, key=f"h_end_{i}{edit_suffix}", placeholder="18")
-            h_note = hc4.text_input(f"비고/코멘트", value=curr_note, key=f"h_note_{i}{edit_suffix}", placeholder="홀수만")
+            h_start = hc2.text_input(f"시작(p)", value=v_hstart, key=f"h_start_{i}{edit_suffix}", placeholder="12")
+            h_end = hc3.text_input(f"끝(p)", value=v_hend, key=f"h_end_{i}{edit_suffix}", placeholder="18")
+            h_note = hc4.text_input(f"비고/코멘트", value=v_hnote, key=f"h_note_{i}{edit_suffix}", placeholder="홀수만")
             
             if hb and (h_start or h_end or h_note):
                 prefix = "p." if (h_start.isdigit() or h_end.isdigit()) else ""
