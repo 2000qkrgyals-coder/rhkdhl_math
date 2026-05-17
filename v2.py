@@ -14,7 +14,7 @@ if 'logged_in' not in st.session_state:
 
 def login_screen():
     st.title("🔒 Tutor Pro Access")
-    pwd = st.text_input("마스터 비밀번호를 입력하세요", type="password")
+    pwd = st.text_input("비밀번호를 입력하세요", type="password")
     if st.button("로그인"):
         if pwd == MASTER_PASSWORD:
             st.session_state.logged_in = True
