@@ -66,21 +66,78 @@ def full_reset():
     st.session_state.check_rows = 1
     st.rerun()
 
-# --- [3. 사이드바 및 학생 선택] ---
+# --- [3. 사이드바 및 학생 선택 & 학생 추가] ---
 with st.sidebar:
     st.title("📑 Tutor Management")
+    
+    # 1. 학생 데이터 로드
     df_st = load_data("students")
+    
+    # ----------------------------------------
+    # ✨ [신규 기능] 사이드바 학생 추가 섹션
+    # ----------------------------------------
+    with st.expander("➕ 새 학생 등록하기", expanded=False):
+        with st.form("add_student_form", clear_on_submit=True):
+            new_name = st.text_input("학생 이름", placeholder="홍길동")
+            new_books_raw = st.text_area("사용 교재 목록 (쉼표로 구분)", placeholder="쎈 중1-1, 라이트쎈, RPM")
+            submit_student = st.form_submit_button("➕ 학생 등록")
+            
+            if submit_student:
+                if not new_name.strip():
+                    st.error("학생 이름을 입력해주세요.")
+                else:
+                    # 중복 이름 검사
+                    if (not df_st.empty) and (new_name.strip() in df_st['name'].values):
+                        st.error("이미 등록된 학생 이름입니다.")
+                    else:
+                        # 교재 텍스트를 JSON 배열 스트링으로 변환
+                        if new_books_raw.strip():
+                            book_list = [b.strip() for b in new_books_raw.split(",") if b.strip()]
+                        else:
+                            book_list = []
+                        json_books = json.dumps(book_list, ensure_ascii=False)
+                        
+                        # 다음 ID 부여
+                        next_st_id = int(df_st['id'].max() + 1) if (not df_st.empty and 'id' in df_st.columns) else 1
+                        
+                        # 새 행 데이터 생성
+                        new_st_row = pd.DataFrame([{
+                            'id': next_st_id,
+                            'name': new_name.strip(),
+                            'books': json_books
+                        }])
+                        
+                        # 데이터 병합 및 구글 시트 저장
+                        df_st = pd.concat([df_st, new_st_row], ignore_index=True)
+                        save_data(df_st, "students")
+                        
+                        st.success(f"🎉 {new_name} 학생이 등록되었습니다!")
+                        time.sleep(1)
+                        st.rerun()
+    
+    st.divider() # 시각적 분리선
+    
+    # 2. 기존 학생 선택 및 교재 로드
     if not df_st.empty:
+        # 학생 목록 선택 박스
         sel_name = st.selectbox("학생 선택", df_st['name'], key="main_student_selector")
+        
+        # 선택된 학생의 상세 데이터 추출
         s_data = df_st[df_st['name'] == sel_name].iloc[0]
         s_id = int(s_data['id'])
+        
         try:
             s_books = json.loads(s_data['books']) if (pd.notna(s_data['books']) and s_data['books'] != "") else []
-        except: s_books = []
+        except: 
+            s_books = []
+            
+        # UI에 선택된 학생 정보 요약 표시
+        st.info(f"👤 **선택된 학생:** {sel_name} (ID: {s_id})")
     else:
-        st.error("등록된 학생이 없습니다.")
+        st.error("등록된 학생이 없습니다. 위에서 학생을 먼저 등록해주세요.")
         st.stop()
 
+# --- [날짜 요일 변환 헬퍼 함수] ---
 def get_date_with_weekday(date_val):
     if not date_val:
         return ""
