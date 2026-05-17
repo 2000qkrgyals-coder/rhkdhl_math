@@ -99,282 +99,268 @@ def get_date_with_weekday(date_val):
 tab1, tab2, tab3, tab4 = st.tabs(["📝 수업 기록/수정", "📊 학습 분석", "📚 교재 관리", "📂 전체 로그"])
 # --- TAB 1: 수업 기록 및 수정 (무한 로딩 + 변수 꼬임 완벽 해결 버전) ---
 with tab1:
-    def safe_int(val):
-        try:
-            if pd.isna(val) or val == "" or val is None: return 0
-            return int(float(val))
-        except: return 0
+    def safe_int(val):
+        try:
+            if pd.isna(val) or val == "" or val is None: return 0
+            return int(float(val))
+        except: return 0
 
-    df_se = load_data("sessions")
-    if (not df_se.empty) and ('student_id' in df_se.columns):
-        all_sessions = df_se[df_se['student_id'] == s_id].sort_values(by='session_num', ascending=False)
-    else:
-        all_sessions = pd.DataFrame()
+    df_se = load_data("sessions")
+    if (not df_se.empty) and ('student_id' in df_se.columns):
+        all_sessions = df_se[df_se['student_id'] == s_id].sort_values(by='session_num', ascending=False)
+    else:
+        all_sessions = pd.DataFrame()
 
-    # 수정 모드 체크 및 고유 접미사 생성
-    is_edit_mode = st.session_state.get('edit_id') is not None
-    edit_suffix = f"_edit_{st.session_state.edit_id}" if is_edit_mode else ""
-    
-    col_status, col_reset = st.columns([4, 1])
-    if is_edit_mode: 
-        col_status.warning(f"🔄 **{int(st.session_state.edit_session_num)}회차 수정 중**")
-    if col_reset.button("🔄 내용 초기화", key="btn_full_reset"): 
-        full_reset()
+    # 수정 모드 체크 및 고유 접미사 생성
+    is_edit_mode = st.session_state.get('edit_id') is not None
+    edit_suffix = f"_edit_{st.session_state.edit_id}" if is_edit_mode else ""
+    
+    col_status, col_reset = st.columns([4, 1])
+    if is_edit_mode: 
+        col_status.warning(f"🔄 **{int(st.session_state.edit_session_num)}회차 수정 중**")
+    if col_reset.button("🔄 내용 초기화", key="btn_full_reset"): 
+        full_reset()
 
-    # --- [전역 파서 강화 버전] 다음 숙제(next_hw) 가변 행 데이터 분리 처리 ---
-    parsed_h_books, parsed_h_starts, parsed_h_ends, parsed_h_notes = [], [], [], []
-    h_rows_count = st.session_state.get('h_rows', 1)
+    # --- [전역 파서] 다음 숙제(next_hw) 가변 행 데이터 분리 처리 ---
+    parsed_h_books, parsed_h_starts, parsed_h_ends, parsed_h_notes = [], [], [], []
+    for i in range(st.session_state.get('h_rows', 1)):
+        e_h = st.session_state.get(f"edit_h_val_{i}", "")
+        def_hb = s_books[0] if s_books else "미등록"
+        def_start, def_end, def_note = "", "", ""
+        if ":" in e_h:
+            def_hb = e_h.split(":")[0].strip()
+            rem = e_h.split(":")[1].strip().replace("p.", "")
+            if "(" in rem:
+                page_part, note_part = rem.split("(", 1)
+                def_note = note_part.replace(")", "").strip()
+                page_part = page_part.strip()
+            else:
+                page_part = rem.strip()
+            clean_page = page_part.replace("번", "").strip()
+            if "~" in clean_page:
+                p_split = clean_page.split("~")
+                def_start, def_end = p_split[0].strip(), p_split[1].strip()
+                if not def_start.isdigit() and not def_end.isdigit():
+                    def_note, def_start, def_end = page_part, "", ""
+            else:
+                if clean_page.isdigit(): def_start = clean_page
+                else: def_note = page_part
+        parsed_h_books.append(def_hb); parsed_h_starts.append(def_start); parsed_h_ends.append(def_end); parsed_h_notes.append(def_note)
 
-    for i in range(h_rows_count):
-        e_h = st.session_state.get(f"edit_h_val_{i}", "")
-        def_hb = s_books[0] if s_books else "미등록"
-        def_start, def_end, def_note = "", "", ""
-        
-        if ":" in e_h:
-            def_hb = e_h.split(":")[0].strip()
-            rem = e_h.split(":", 1)[1].strip()
-            
-            # 1. 비고/코멘트 분리: (...) 괄호가 있는지 확인
-            if "(" in rem and rem.endswith(")"):
-                rem_part, note_part = rem.rsplit("(", 1)
-                def_note = note_part.replace(")", "").strip()
-                rem = rem_part.strip()
-            
-            # 접두사/접미사 정제 (p., 번 제거)
-            clean_page = rem.replace("p.", "").replace("번", "").strip()
-            
-            # 2. 범위 분리 (~ 기준)
-            if "~" in clean_page:
-                p_split = clean_page.split("~")
-                def_start = p_split[0].strip()
-                def_end = p_split[1].strip()
-                # 숫자가 아닌 문자열인 경우 비고로 전송
-                if not def_start.isdigit() and not def_end.isdigit():
-                    def_note = rem
-                    def_start, def_end = "", ""
-            else:
-                if clean_page.isdigit():
-                    def_start = clean_page
-                else:
-                    if clean_page:  # 숫자 형식이 아니면 전체를 비고로 처리
-                        def_note = rem if not def_note else f"{rem} | {def_note}"
-                        
-        parsed_h_books.append(def_hb)
-        parsed_h_starts.append(def_start)
-        parsed_h_ends.append(def_end)
-        parsed_h_notes.append(def_note)
+    # --- 1. 지난 숙제 채점 섹션 ---
+    st.write("### ✍️ 지난 숙제 채점")
+    
+    if not all_sessions.empty:
+        # 최근 2회차만 정렬하여 가져오기
+        recent_sessions = all_sessions.sort_values(by=['date', 'session_num'], ascending=False).head(2)
+        
+        hw_options = {
+            f"[{int(row['session_num'])}회차] {get_date_with_weekday(row['date'])} : {row['next_hw']}": row['next_hw'] 
+            for _, row in recent_sessions.iterrows()
+        }
+        
+        # 💡 [콜백 엔지니어링] 무한 루프를 원천 격리하는 안전 연산 함수
+        def apply_old_homework_callback():
+            target_label = st.session_state.get("sb_apply_old_hw_track")
+            if target_label and target_label != "선택 안 함":
+                actual_hw = hw_options[target_label]
+                
+                # 문장 분리
+                hw_parts = actual_hw.split(" | ") if " | " in actual_hw else [actual_hw]
+                    
+                # 행 개수 및 데이터 즉시 주입 (첫 칸 유실 차단)
+                st.session_state.check_rows = len(hw_parts)
+                st.session_state.h_rows = len(hw_parts)
+                
+                for i, part in enumerate(hw_parts): 
+                    st.session_state[f"edit_c_val_{i}"] = part.strip()
+                    st.session_state[f"edit_h_val_{i}"] = part.strip()
+                
+                # 불러오기가 끝나면 셀렉트박스를 자동으로 "선택 안 함"으로 리셋
+                st.session_state["sb_apply_old_hw_track"] = "선택 안 함"
 
-    # --- 1. 지난 숙제 채점 섹션 ---
-    st.write("### ✍️ 지난 숙제 채점")
-    
-    if not all_sessions.empty:
-        # 최근 2회차만 정렬하여 가져오기
-        recent_sessions = all_sessions.sort_values(by=['date', 'session_num'], ascending=False).head(2)
-        
-        hw_options = {
-            f"[{int(row['session_num'])}회차] {get_date_with_weekday(row['date'])} : {row['next_hw']}": row['next_hw'] 
-            for _, row in recent_sessions.iterrows()
-        }
-        
-        # 💡 [콜백 엔지니어링] 데이터가 유실 없이 즉시 동기화되도록 보완된 안전 함수
-        def apply_old_homework_callback():
-            target_label = st.session_state.get("sb_apply_old_hw_track")
-            if target_label and target_label != "선택 안 함":
-                actual_hw = hw_options[target_label]
-                
-                # 문장 분리 (여러 개의 숙제가 ' | '로 연결된 경우)
-                hw_parts = actual_hw.split(" | ") if " | " in actual_hw else [actual_hw]
-                
-                # 행 개수 즉시 주입 및 세션 저장
-                st.session_state.check_rows = len(hw_parts)
-                st.session_state.h_rows = len(hw_parts)
-                
-                for i, part in enumerate(hw_parts): 
-                    st.session_state[f"edit_c_val_{i}"] = part.strip()
-                    st.session_state[f"edit_h_val_{i}"] = part.strip()
-                
-                # 리셋 처리
-                st.session_state["sb_apply_old_hw_track"] = "선택 안 함"
+        # 셀렉트박스 출력
+        selected_label = st.selectbox(
+            "📥 이전 숙제 불러오기", 
+            ["선택 안 함"] + list(hw_options.keys()),
+            key="sb_apply_old_hw_track"
+        )
+        
+        # 💡 [교정 핵심] 무한 루프를 도는 옛날 구형 조건문을 완전히 삭제하고 on_click 단독 버튼만 깔끔히 구현
+        if selected_label != "선택 안 함":
+            st.button("적용하기", key="btn_apply_old_hw_unique_callback", on_click=apply_old_homework_callback)
+        
+    no_hw = st.checkbox("✅ 숙제 없음", key="no_hw_check", value=st.session_state.get('edit_no_hw', False))
+    check_list, acc_total, acc_done = [], 0, 0
+    
+    if not no_hw:
+        for i in range(st.session_state.check_rows):
+            c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
+            e_val = st.session_state.get(f"edit_c_val_{i}", "")
+            
+            # 초기화 기본값 세팅
+            def_book = s_books[0] if s_books else "미등록"
+            def_range = ""
+            def_total_q = 0
+            def_done_q = 0
+            
+            # 데이터 분리 파서 (예: "개념원리: p.10~p.20 (15/20)")
+            if ":" in e_val:
+                def_book = e_val.split(":")[0].strip()
+                rem_part = e_val.split(":")[1].strip() # "p.10~p.20 (15/20)"
+                
+                if "(" in rem_part:
+                    def_range = rem_part.split("(")[0].strip() # "p.10~p.20"
+                    score_part = rem_part.split("(")[1].replace(")", "").strip() # "15/20"
+                    if "/" in score_part:
+                        try:
+                            def_done_q = int(score_part.split("/")[0].strip()) # 15
+                            def_total_q = int(score_part.split("/")[1].strip()) # 20
+                        except:
+                            def_done_q, def_total_q = 0, 0
+                else:
+                    def_range = rem_part
+            
+            # UI 컴포넌트에 파싱된 데이터 주입 (value 매핑 및 고유 키 갱신)
+            cb = c1.selectbox(f"교재 {i+1}", s_books, index=s_books.index(def_book) if def_book in s_books else 0, key=f"cb_{i}{edit_suffix}")
+            cr = c2.text_input(f"범위 {i+1}", value=def_range, key=f"cr_{i}{edit_suffix}")
+            ct = c3.number_input(f"총", min_value=0, value=def_total_q, key=f"ct_{i}{edit_suffix}") 
+            cd = c4.number_input(f"푼", min_value=0, value=def_done_q, key=f"cd_{i}{edit_suffix}")  
+            
+            if cb and cr: 
+                check_list.append(f"{cb}: {cr} ({cd}/{ct})")
+            acc_total += ct; acc_done += cd
+        
+        final_rate = int((acc_done / acc_total * 100)) if acc_total > 0 else 100
+        st.info(f"📊 **이행률: {final_rate}%** (총 {acc_total}페이지 중 {acc_done}페이지 완료)")
 
-        # 셀렉트박스 출력
-        selected_label = st.selectbox(
-            "📥 이전 숙제 불러오기", 
-            ["선택 안 함"] + list(hw_options.keys()),
-            key="sb_apply_old_hw_track"
-        )
-        
-        if selected_label != "선택 안 함":
-            # 클릭 시 스크립트를 리런하여 파서가 데이터를 읽어가도록 보장
-            st.button("적용하기", key="btn_apply_old_hw_unique_callback", on_click=apply_old_homework_callback)
-        
-    no_hw = st.checkbox("✅ 숙제 없음", key="no_hw_check", value=st.session_state.get('edit_no_hw', False))
-    check_list, acc_total, acc_done = [], 0, 0
-    
-    if not no_hw:
-        for i in range(st.session_state.get('check_rows', 1)):
-            c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
-            e_val = st.session_state.get(f"edit_c_val_{i}", "")
-            
-            # 초기화 기본값 세팅
-            def_book = s_books[0] if s_books else "미등록"
-            def_range = ""
-            def_total_q = 0
-            def_done_q = 0
-            
-            # 데이터 분리 파서 (예: "개념원리: p.10~p.20 (15/20)")
-            if ":" in e_val:
-                def_book = e_val.split(":")[0].strip()
-                rem_part = e_val.split(":", 1)[1].strip() # "p.10~p.20 (15/20)"
-                
-                if "(" in rem_part:
-                    def_range = rem_part.split("(")[0].strip() # "p.10~p.20"
-                    score_part = rem_part.rsplit("(", 1)[1].replace(")", "").strip() # "15/20"
-                    if "/" in score_part:
-                        try:
-                            def_done_q = int(score_part.split("/")[0].strip()) # 15
-                            def_total_q = int(score_part.split("/")[1].strip()) # 20
-                        except:
-                            def_done_q, def_total_q = 0, 0
-                else:
-                    def_range = rem_part
-            
-            # UI 컴포넌트에 파싱된 데이터 주입
-            cb = c1.selectbox(f"교재 {i+1}", s_books, index=s_books.index(def_book) if def_book in s_books else 0, key=f"cb_{i}{edit_suffix}")
-            cr = c2.text_input(f"범위 {i+1}", value=def_range, key=f"cr_{i}{edit_suffix}")
-            ct = c3.number_input(f"총", min_value=0, value=def_total_q, key=f"ct_{i}{edit_suffix}") 
-            cd = c4.number_input(f"푼", min_value=0, value=def_done_q, key=f"cd_{i}{edit_suffix}")  
-            
-            if cb and cr: 
-                check_list.append(f"{cb}: {cr} ({cd}/{ct})")
-            acc_total += ct; acc_done += cd
-        
-        final_rate = int((acc_done / acc_total * 100)) if acc_total > 0 else 100
-        st.info(f"📊 **이행률: {final_rate}%** (총 {acc_total}문항 중 {acc_done}문항 완료)")
+        st.write("#### ❌ 숙제 오답 분석")
+        w_total = st.number_input("전체 숙제 오답 개수", min_value=0, value=safe_int(st.session_state.get('edit_w_total', 0)), key=f"w_total{edit_suffix}")
+        wc1, wc2, wc3, wc4 = st.columns(4)
+        w_calc = wc1.number_input("계산실수", min_value=0, value=safe_int(st.session_state.get('edit_w_calc', 0)), key=f"w_calc{edit_suffix}")
+        w_concept = wc2.number_input("개념부족", min_value=0, value=safe_int(st.session_state.get('edit_w_concept', 0)), key=f"w_concept{edit_suffix}")
+        w_hard = wc3.number_input("고난도", min_value=0, value=safe_int(st.session_state.get('edit_w_hard', 0)), key=f"w_hard{edit_suffix}")
+        w_under = wc4.number_input("문제이해", min_value=0, value=safe_int(st.session_state.get('edit_w_under', 0)), key=f"w_under{edit_suffix}")
+    else:
+        final_rate, w_total, w_calc, w_concept, w_hard, w_under = 100, 0, 0, 0, 0, 0
 
-        st.write("#### ❌ 숙제 오답 분석")
-        w_total = st.number_input("전체 숙제 오답 개수", min_value=0, value=safe_int(st.session_state.get('edit_w_total', 0)), key=f"w_total{edit_suffix}")
-        wc1, wc2, wc3, wc4 = st.columns(4)
-        w_calc = wc1.number_input("계산실수", min_value=0, value=safe_int(st.session_state.get('edit_w_calc', 0)), key=f"w_calc{edit_suffix}")
-        w_concept = wc2.number_input("개념부족", min_value=0, value=safe_int(st.session_state.get('edit_w_concept', 0)), key=f"w_concept{edit_suffix}")
-        w_hard = wc3.number_input("고난도", min_value=0, value=safe_int(st.session_state.get('edit_w_hard', 0)), key=f"w_hard{edit_suffix}")
-        w_under = wc4.number_input("문제이해", min_value=0, value=safe_int(st.session_state.get('edit_w_under', 0)), key=f"w_under{edit_suffix}")
-    else:
-        final_rate, w_total, w_calc, w_concept, w_hard, w_under = 100, 0, 0, 0, 0, 0
+    c_c1, c_c2 = st.columns(2)
+    if c_c1.button("➕ 채점칸 추가", key="btn_add_check"): st.session_state.check_rows += 1; st.rerun()
+    if c_c2.button("➖ 채점칸 제거", key="btn_sub_check"): st.session_state.check_rows = max(1, st.session_state.check_rows-1); st.rerun()
 
-    c_c1, c_c2 = st.columns(2)
-    if c_c1.button("➕ 채점칸 추가", key="btn_add_check"): st.session_state.check_rows = st.session_state.get('check_rows', 1) + 1; st.rerun()
-    if c_c2.button("➖ 채점칸 제거", key="btn_sub_check"): st.session_state.check_rows = max(1, st.session_state.get('check_rows', 1)-1); st.rerun()
+    # --- 2. 데일리 테스트 섹션 ---
+    st.divider()
+    st.write("### 📝 데일리 테스트 결과")
+    edit_t_total = safe_int(st.session_state.get('edit_test_total', 0))
+    use_test = st.checkbox("오늘 데일리 테스트 실시", value=(edit_t_total > 0), key=f"use_test{edit_suffix}")
+    
+    if use_test:
+        tc1, tc2, tc3 = st.columns([2, 1, 1])
+        t_name = tc1.text_input("테스트 명", value=st.session_state.get('edit_test_name', "단원평가"), key=f"t_name{edit_suffix}")
+        t_total = tc2.number_input("T.총 문항", min_value=0, value=safe_int(st.session_state.get('edit_test_total', 0)), key=f"t_total{edit_suffix}")
+        t_score = tc3.number_input("T.맞은 개수", min_value=0, value=safe_int(st.session_state.get('edit_test_score', 0)), key=f"t_score{edit_suffix}")
+        st.write("❌ 테스트 오답 분석")
+        twc1, twc2, twc3, twc4 = st.columns(4)
+        t_calc = twc1.number_input("T.계산실수", min_value=0, value=safe_int(st.session_state.get('edit_t_calc', 0)), key=f"t_calc{edit_suffix}")
+        t_concept = twc2.number_input("T.개념부족", min_value=0, value=safe_int(st.session_state.get('edit_t_concept', 0)), key=f"t_concept{edit_suffix}")
+        t_hard = twc3.number_input("T.고난도", min_value=0, value=safe_int(st.session_state.get('edit_t_hard', 0)), key=f"t_hard{edit_suffix}")
+        t_under = twc4.number_input("T.문제이해", min_value=0, value=safe_int(st.session_state.get('edit_t_under', 0)), key=f"t_under{edit_suffix}")
+    else:
+        t_name, t_total, t_score, t_calc, t_concept, t_hard, t_under = "", 0, 0, 0, 0, 0, 0
 
-    # --- 2. 데일리 테스트 섹션 ---
-    st.divider()
-    st.write("### 📝 데일리 테스트 결과")
-    edit_t_total = safe_int(st.session_state.get('edit_test_total', 0))
-    use_test = st.checkbox("오늘 데일리 테스트 실시", value=(edit_t_total > 0), key=f"use_test{edit_suffix}")
-    
-    if use_test:
-        tc1, tc2, tc3 = st.columns([2, 1, 1])
-        t_name = tc1.text_input("테스트 명", value=st.session_state.get('edit_test_name', "단원평가"), key=f"t_name{edit_suffix}")
-        t_total = tc2.number_input("T.총 문항", min_value=0, value=safe_int(st.session_state.get('edit_test_total', 0)), key=f"t_total{edit_suffix}")
-        t_score = tc3.number_input("T.맞은 개수", min_value=0, value=safe_int(st.session_state.get('edit_test_score', 0)), key=f"t_score{edit_suffix}")
-        st.write("❌ 테스트 오답 분석")
-        twc1, twc2, twc3, twc4 = st.columns(4)
-        t_calc = twc1.number_input("T.계산실수", min_value=0, value=safe_int(st.session_state.get('edit_t_calc', 0)), key=f"t_calc{edit_suffix}")
-        t_concept = twc2.number_input("T.개념부족", min_value=0, value=safe_int(st.session_state.get('edit_t_concept', 0)), key=f"t_concept{edit_suffix}")
-        t_hard = twc3.number_input("T.고난도", min_value=0, value=safe_int(st.session_state.get('edit_t_hard', 0)), key=f"t_hard{edit_suffix}")
-        t_under = twc4.number_input("T.문제이해", min_value=0, value=safe_int(st.session_state.get('edit_t_under', 0)), key=f"t_under{edit_suffix}")
-    else:
-        t_name, t_total, t_score, t_calc, t_concept, t_hard, t_under = "", 0, 0, 0, 0, 0, 0
+    st.divider()
 
-    st.divider()
+    # --- 3. 오늘 수업 정보 입력 폼 ---
+    with st.form("lesson_form"):
+        st.write("### 📖 오늘 수업 정보")
+        c_d, c_n = st.columns(2)
+        d_val = datetime.strptime(st.session_state.edit_date, "%Y-%m-%d") if is_edit_mode else datetime.now()
+        date_in = c_d.date_input("날짜", d_val, key=f"date_in{edit_suffix}")
+        next_s = int(all_sessions['session_num'].max() + 1) if not all_sessions.empty else 1
+        sess_num = c_n.number_input("회차", value=int(st.session_state.get('edit_session_num', next_s)), key=f"sess_num{edit_suffix}")
+        
+        # --- [시간 복원 철벽 파서 적용 장치] ---
+        c_t1, c_t2 = st.columns(2)
+        def_start_t = dt_time(14, 0)
+        def_end_t = dt_time(16, 0)
+        
+        if is_edit_mode:
+            try:
+                s_raw = str(st.session_state.get('edit_start_time', "14:00")).strip()
+                e_raw = str(st.session_state.get('edit_end_time', "16:00")).strip()
+                
+                s_parts = s_raw.split(":")
+                e_parts = e_raw.split(":")
+                
+                if len(s_parts) >= 2: def_start_t = dt_time(int(s_parts[0]), int(s_parts[1]))
+                if len(e_parts) >= 2: def_end_t = dt_time(int(e_parts[0]), int(e_parts[1]))
+            except Exception as e:
+                pass
 
-    # --- 3. 오늘 수업 정보 입력 폼 ---
-    with st.form("lesson_form"):
-        st.write("### 📖 오늘 수업 정보")
-        c_d, c_n = st.columns(2)
-        d_val = datetime.strptime(st.session_state.edit_date, "%Y-%m-%d") if is_edit_mode else datetime.now()
-        date_in = c_d.date_input("날짜", d_val, key=f"date_in{edit_suffix}")
-        next_s = int(all_sessions['session_num'].max() + 1) if not all_sessions.empty else 1
-        sess_num = c_n.number_input("회차", value=int(st.session_state.get('edit_session_num', next_s)), key=f"sess_num{edit_suffix}")
-        
-        # --- 시간 복원 파서 ---
-        c_t1, c_t2 = st.columns(2)
-        def_start_t = dt_time(14, 0)
-        def_end_t = dt_time(16, 0)
-        
-        if is_edit_mode:
-            try:
-                s_raw = str(st.session_state.get('edit_start_time', "14:00")).strip()
-                e_raw = str(st.session_state.get('edit_end_time', "16:00")).strip()
-                s_parts = s_raw.split(":")
-                e_parts = e_raw.split(":")
-                if len(s_parts) >= 2: def_start_t = dt_time(int(s_parts[0]), int(s_parts[1]))
-                if len(e_parts) >= 2: def_end_t = dt_time(int(e_parts[0]), int(e_parts[1]))
-            except: pass
+        start_t = c_t1.time_input("시작", def_start_t, key=f"start_t{edit_suffix}")
+        end_t = c_t2.time_input("종료", def_end_t, key=f"end_t{edit_suffix}")
 
-        start_t = c_t1.time_input("시작", def_start_t, key=f"start_t{edit_suffix}")
-        end_t = c_t2.time_input("종료", def_end_t, key=f"end_t{edit_suffix}")
+        p_list, h_list = [], []
+        st.write("📖 진도")
+        for i in range(st.session_state.p_rows):
+            cc1, cc2 = st.columns([1, 2])
+            e_p = st.session_state.get(f"edit_p_val_{i}", "")
+            def_pb = e_p.split(":")[0] if ":" in e_p else (s_books[0] if s_books else "미등록")
+            def_pr = e_p.split(":")[1].strip() if ":" in e_p else ""
+            
+            pb = cc1.selectbox(f"진도 {i+1}", s_books, index=s_books.index(def_pb) if def_pb in s_books else 0, key=f"pb_{i}{edit_suffix}")
+            pr = cc2.text_input(f"진도 범위", value=def_pr, key=f"pr_{i}{edit_suffix}")
+            if pb and pr: p_list.append(f"{pb}: {pr}")
+        
+        st.write("📝 다음 숙제")
+        for i in range(st.session_state.h_rows):
+            st.markdown(f"**📍 숙제 {i+1}**")
+            hc1, hc2, hc3, hc4 = st.columns([2, 1, 1, 3])
+            
+            curr_hb = parsed_h_books[i] if i < len(parsed_h_books) else (s_books[0] if s_books else "미등록")
+            curr_start = parsed_h_starts[i] if i < len(parsed_h_starts) else ""
+            curr_end = parsed_h_ends[i] if i < len(parsed_h_ends) else ""
+            curr_note = parsed_h_notes[i] if i < len(parsed_h_notes) else ""
+            
+            hb = hc1.selectbox(f"교재", s_books, index=s_books.index(curr_hb) if curr_hb in s_books else 0, key=f"hb_{i}{edit_suffix}")
+            h_start = hc2.text_input(f"시작(p)", value=curr_start, key=f"h_start_{i}{edit_suffix}", placeholder="12")
+            h_end = hc3.text_input(f"끝(p)", value=curr_end, key=f"h_end_{i}{edit_suffix}", placeholder="18")
+            h_note = hc4.text_input(f"비고/코멘트", value=curr_note, key=f"h_note_{i}{edit_suffix}", placeholder="홀수만")
+            
+            if hb and (h_start or h_end or h_note):
+                prefix = "p." if (h_start.isdigit() or h_end.isdigit()) else ""
+                page_str = f"{prefix}{h_start}" if h_start else ""
+                if h_end: 
+                    if page_str: page_str += f"~{h_end}"
+                    else: page_str = f"{prefix}~{h_end}"
+                if ("번" not in page_str) and (any(x in hb for x in ["쎈", "라이트쎈", "RPM", "플러스"])):
+                    if page_str: page_str += "번"
+                note_str = f" ({h_note})" if h_note else ""
+                h_list.append(f"{hb}: {page_str}{note_str}".strip())
 
-        p_list, h_list = [], []
-        st.write("📖 진도")
-        for i in range(st.session_state.get('p_rows', 1)):
-            cc1, cc2 = st.columns([1, 2])
-            e_p = st.session_state.get(f"edit_p_val_{i}", "")
-            def_pb = e_p.split(":")[0] if ":" in e_p else (s_books[0] if s_books else "미등록")
-            def_pr = e_p.split(":")[1].strip() if ":" in e_p else ""
-            
-            pb = cc1.selectbox(f"진도 {i+1}", s_books, index=s_books.index(def_pb) if def_pb in s_books else 0, key=f"pb_{i}{edit_suffix}")
-            pr = cc2.text_input(f"진도 범위", value=def_pr, key=f"pr_{i}{edit_suffix}")
-            if pb and pr: p_list.append(f"{pb}: {pr}")
-        
-        st.write("📝 다음 숙제")
-        for i in range(st.session_state.get('h_rows', 1)):
-            st.markdown(f"**📍 숙제 {i+1}**")
-            hc1, hc2, hc3, hc4 = st.columns([2, 1, 1, 3])
-            
-            curr_hb = parsed_h_books[i] if i < len(parsed_h_books) else (s_books[0] if s_books else "미등록")
-            curr_start = parsed_h_starts[i] if i < len(parsed_h_starts) else ""
-            curr_end = parsed_h_ends[i] if i < len(parsed_h_ends) else ""
-            curr_note = parsed_h_notes[i] if i < len(parsed_h_notes) else ""
-            
-            hb = hc1.selectbox(f"교재", s_books, index=s_books.index(curr_hb) if curr_hb in s_books else 0, key=f"hb_{i}{edit_suffix}")
-            h_start = hc2.text_input(f"시작(p)", value=curr_start, key=f"h_start_{i}{edit_suffix}", placeholder="12")
-            h_end = hc3.text_input(f"끝(p)", value=curr_end, key=f"h_end_{i}{edit_suffix}", placeholder="18")
-            h_note = hc4.text_input(f"비고/코멘트", value=curr_note, key=f"h_note_{i}{edit_suffix}", placeholder="홀수만")
-            
-            if hb and (h_start or h_end or h_note):
-                prefix = "p." if (h_start.isdigit() or h_end.isdigit()) else ""
-                page_str = f"{prefix}{h_start}" if h_start else ""
-                if h_end: 
-                    if page_str: page_str += f"~{h_end}"
-                    else: page_str = f"{prefix}~{h_end}"
-                if ("번" not in page_str) and (any(x in hb for x in ["쎈", "라이트쎈", "RPM", "플러스"])):
-                    if page_str: page_str += "번"
-                note_str = f" ({h_note})" if h_note else ""
-                h_list.append(f"{hb}: {page_str}{note_str}".strip())
+        fback = st.text_area("피드백", value=st.session_state.get('edit_feedback', ""), key=f"fb_text{edit_suffix}")
+        
+        if st.form_submit_button("💾 저장하기"):
+            dur = (datetime.combine(date_in, end_t) - datetime.combine(date_in, start_t)).seconds // 60
+            new_id = int(st.session_state.edit_id) if is_edit_mode else (int(df_se['id'].max()+1) if not df_se.empty else 1)
+            new_row = {
+                'id': new_id, 'student_id': s_id, 'date': str(date_in), 'session_num': int(sess_num),
+                'start_time': start_t.strftime("%H:%M"), 'end_time': end_t.strftime("%H:%M"), 'duration': int(dur),
+                'hw_detail': " | ".join(check_list), 'progress': " | ".join(p_list),
+                'hw_result_rate': int(final_rate), 'next_hw': " | ".join(h_list), 'feedback': fback,
+                'wrong_total': w_total, 'err_calc': w_calc, 'err_concept': w_concept, 'err_hard': w_hard, 'err_understand': w_under,
+                'test_name': t_name, 'test_total': t_total, 'test_score': t_score,
+                'test_calc': t_calc, 'test_concept': t_concept, 'test_hard': t_hard, 'test_under': t_under
+            }
+            if is_edit_mode: df_se = df_se[df_se['id'] != st.session_state.edit_id]
+            save_data(pd.concat([df_se, pd.DataFrame([new_row])], ignore_index=True), "sessions")
+            st.success("저장되었습니다!"); time.sleep(1); full_reset()
 
-        fback = st.text_area("피드백", value=st.session_state.get('edit_feedback', ""), key=f"fb_text{edit_suffix}")
-        
-        if st.form_submit_button("💾 저장하기"):
-            dur = (datetime.combine(date_in, end_t) - datetime.combine(date_in, start_t)).seconds // 60
-            new_id = int(st.session_state.edit_id) if is_edit_mode else (int(df_se['id'].max()+1) if not df_se.empty else 1)
-            new_row = {
-                'id': new_id, 'student_id': s_id, 'date': str(date_in), 'session_num': int(sess_num),
-                'start_time': start_t.strftime("%H:%M"), 'end_time': end_t.strftime("%H:%M"), 'duration': int(dur),
-                'hw_detail': " | ".join(check_list), 'progress': " | ".join(p_list),
-                'hw_result_rate': int(final_rate), 'next_hw': " | ".join(h_list), 'feedback': fback,
-                'wrong_total': w_total, 'err_calc': w_calc, 'err_concept': w_concept, 'err_hard': w_hard, 'err_understand': w_under,
-                'test_name': t_name, 'test_total': t_total, 'test_score': t_score,
-                'test_calc': t_calc, 'test_concept': t_concept, 'test_hard': t_hard, 'test_under': t_under
-            }
-            if is_edit_mode: df_se = df_se[df_se['id'] != st.session_state.edit_id]
-            save_data(pd.concat([df_se, pd.DataFrame([new_row])], ignore_index=True), "sessions")
-            st.success("저장되었습니다!"); time.sleep(1); full_reset()
-
-    col_p1, col_p2, col_h1, col_h2 = st.columns(4)
-    if col_p1.button("➕ 진도칸+", key="btn_add_progress"): st.session_state.p_rows = st.session_state.get('p_rows', 1) + 1; st.rerun()
-    if col_p2.button("➖ 진도칸-", key="btn_sub_progress"): st.session_state.p_rows = max(1, st.session_state.get('p_rows', 1)-1); st.rerun()
-    if col_h1.button("➕ 숙제칸+", key="btn_add_hw"): st.session_state.h_rows = st.session_state.get('h_rows', 1) + 1; st.rerun()
-    if col_h2.button("➖ 숙제칸-", key="btn_sub_hw"): st.session_state.h_rows = max(1, st.session_state.get('h_rows', 1)-1); st.rerun()
+    col_p1, col_p2, col_h1, col_h2 = st.columns(4)
+    if col_p1.button("➕ 진도칸+", key="btn_add_progress"): st.session_state.p_rows += 1; st.rerun()
+    if col_p2.button("➖ 진도칸-", key="btn_sub_progress"): st.session_state.p_rows = max(1, st.session_state.p_rows-1); st.rerun()
+    if col_h1.button("➕ 숙제칸+", key="btn_add_hw"): st.session_state.h_rows += 1; st.rerun()
+    if col_h2.button("➖ 숙제칸-", key="btn_sub_hw"): st.session_state.h_rows = max(1, st.session_state.h_rows-1); st.rerun()
 # --- TAB 2: 학습 분석 ---
 with tab2:
     st.subheader("📊 월별 상세 학습 통계")
