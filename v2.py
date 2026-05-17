@@ -97,7 +97,7 @@ def get_date_with_weekday(date_val):
         return str(date_val)
 
 tab1, tab2, tab3, tab4 = st.tabs(["📝 수업 기록/수정", "📊 학습 분석", "📚 교재 관리", "📂 전체 로그"])
-# --- TAB 1: 수업 기록 및 수정 (컴포넌트 Key 직주입 방식 - 첫 행 유실 완벽 해결) ---
+# --- TAB 1: 수업 기록 및 수정 (첫 행 자동 계산 버그 완벽 해결 버전) ---
 with tab1:
     def safe_int(val):
         try:
@@ -137,7 +137,7 @@ with tab1:
             for _, row in recent_sessions.iterrows()
         }
         
-        # 💡 [핵심 개조 콜백] 컴포넌트의 실제 key값에 직접 값을 파싱해서 강제 이식합니다.
+        # 💡 콜백 시점에 '총 페이지 수'까지 완벽하게 사전 계산하여 주입하도록 개조했습니다.
         def apply_old_homework_callback():
             target_label = st.session_state.get("sb_apply_old_hw_track")
             if target_label and target_label != "선택 안 함":
@@ -174,11 +174,17 @@ with tab1:
                             if clean_page.isdigit(): start_val = clean_page
                             else: note_val = page_part
                     
-                    # 💡 UI 컴포넌트가 참조할 Key에 State 값을 다이렉트로 강제 주입 (첫 줄 날아가는 현상 완벽 방어)
+                    # 💡 [핵심 보완] 시작과 끝 페이지가 숫자일 경우 총 페이지 수를 미리 계산
+                    cal_total = 0
+                    if start_val.isdigit() and end_val.isdigit():
+                        cal_total = max(0, int(end_val) - int(start_val) + 1)
+                    
+                    # UI 컴포넌트 Key에 직접 강제 매핑
                     st.session_state[f"cb_{i}{edit_suffix}"] = cb_val
                     st.session_state[f"c_start_{i}{edit_suffix}"] = start_val
                     st.session_state[f"c_end_{i}{edit_suffix}"] = end_val
                     st.session_state[f"c_note_{i}{edit_suffix}"] = note_val
+                    st.session_state[f"ct_{i}{edit_suffix}"] = cal_total  # 총 페이지 수 사전 주입
                     st.session_state[f"cd_{i}{edit_suffix}"] = done_val
                 
                 st.session_state["sb_apply_old_hw_track"] = "선택 안 함"
@@ -202,7 +208,7 @@ with tab1:
             # 수정 모드(과거 기록 편집 클릭) 시 데이터 백업 파싱 로직
             e_c = st.session_state.get(f"edit_c_val_{i}", "")
             if e_c and f"cb_{i}{edit_suffix}" not in st.session_state:
-                cb_init, start_init, end_init, note_init, done_init = (s_books[0] if s_books else "미등록"), "", "", "", 0
+                cb_init, start_init, end_init, note_init, done_init, total_init = (s_books[0] if s_books else "미등록"), "", "", "", 0, 0
                 if ":" in e_c:
                     cb_init = e_c.split(":")[0].strip()
                     rem = e_c.split(":")[1].strip().replace("p.", "")
@@ -211,7 +217,10 @@ with tab1:
                         score_part = score_part.replace(")", "").strip()
                         page_part = page_part.strip()
                         if "/" in score_part:
-                            try: done_init = int(score_part.split("/")[0].strip())
+                            try: 
+                                score_split = score_part.split("/")
+                                done_init = int(score_split[0].strip())
+                                total_init = int(score_split[1].strip())
                             except: pass
                         else: note_init = score_part
                     else:
@@ -225,34 +234,43 @@ with tab1:
                         if clean_page.isdigit(): start_init = clean_page
                         else: note_init = page_part
                 
+                # 수정모드 로드 시에도 총 페이지 계산 보정
+                if total_init == 0 and start_init.isdigit() and end_init.isdigit():
+                    total_init = max(0, int(end_init) - int(start_init) + 1)
+
                 st.session_state[f"cb_{i}{edit_suffix}"] = cb_init
                 st.session_state[f"c_start_{i}{edit_suffix}"] = start_init
                 st.session_state[f"c_end_{i}{edit_suffix}"] = end_init
                 st.session_state[f"c_note_{i}{edit_suffix}"] = note_init
+                st.session_state[f"ct_{i}{edit_suffix}"] = total_init
                 st.session_state[f"cd_{i}{edit_suffix}"] = done_init
 
-            # 세션에 기록된 상태가 있으면 가져오고 없으면 기본값 바인딩
+            # 세션에서 현재 상태값 안전하게 확보
             v_cb = st.session_state.get(f"cb_{i}{edit_suffix}", (s_books[0] if s_books else "미등록"))
             v_start = st.session_state.get(f"c_start_{i}{edit_suffix}", "")
             v_end = st.session_state.get(f"c_end_{i}{edit_suffix}", "")
             v_note = st.session_state.get(f"c_note_{i}{edit_suffix}", "")
+            v_total = st.session_state.get(f"ct_{i}{edit_suffix}", 0)
             v_done = st.session_state.get(f"cd_{i}{edit_suffix}", 0)
 
-            # UI 컴포넌트 매핑 (value 속성을 세션 값으로 완전 고정)
+            # UI 컴포넌트 렌더링
             b_idx = s_books.index(v_cb) if v_cb in s_books else 0
             cb = cc1.selectbox(f"교재", s_books, index=b_idx, key=f"cb_{i}{edit_suffix}")
             c_start = cc2.text_input(f"시작(p)", value=v_start, key=f"c_start_{i}{edit_suffix}")
             c_end = cc3.text_input(f"끝(p)", value=v_end, key=f"c_end_{i}{edit_suffix}")
             c_note = cc4.text_input(f"비고/코멘트", value=v_note, key=f"c_note_{i}{edit_suffix}")
             
-            # 페이지 수 자동 계산 수식 활성화
-            auto_total = 0
+            # 수동 입력 시 실시간 반영을 위한 인터랙티브 계산 공식
+            auto_total = v_total
             if c_start.isdigit() and c_end.isdigit():
                 auto_total = max(0, int(c_end) - int(c_start) + 1)
             
-            ct = cc5.number_input(f"총", min_value=0, value=auto_total, key=f"ct_{i}{edit_suffix}")
+            ct = cc5.number_input(f"총", min_value=0, value=int(auto_total), key=f"ct_{i}{edit_suffix}")
             cd = cc6.number_input(f"푼", min_value=0, value=int(v_done), key=f"cd_{i}{edit_suffix}")
             
+            # 실시간 세션 동기화 (화면 입력 시 세션 값도 업데이트하여 수식 연동성 유지)
+            st.session_state[f"ct_{i}{edit_suffix}"] = ct
+
             if cb and (c_start or c_end or c_note):
                 prefix = "p." if (c_start.isdigit() or c_end.isdigit()) else ""
                 page_str = f"{prefix}{c_start}" if c_start else ""
@@ -357,7 +375,6 @@ with tab1:
             st.markdown(f"**📍 숙제 {i+1}**")
             hc1, hc2, hc3, hc4 = st.columns([2, 1, 1, 3])
             
-            # 다음 숙제 인라인 컴포넌트 고유 키 세션 바인딩 및 파싱 고도화
             e_h = st.session_state.get(f"edit_h_val_{i}", "")
             if e_h and f"hb_{i}{edit_suffix}" not in st.session_state:
                 hb_init, h_start_init, h_end_init, h_note_init = (s_books[0] if s_books else "미등록"), "", "", ""
