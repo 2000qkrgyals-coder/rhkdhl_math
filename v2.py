@@ -333,8 +333,6 @@ with tab1:
                     if page_str: page_str += f"~{c_end}"
                     else: page_str = f"{prefix}~{c_end}"
                 
-                if ("번" not in page_str) and (any(x in cb for x in ["쎈", "라이트쎈", "RPM", "플러스"])):
-                    if page_str and not page_str.endswith("번"): page_str += "번"
                     
                 note_str = f" ({c_note})" if c_note else ""
                 check_list.append(f"{cb}: {page_str}{note_str} ({cd}/{ct})")
@@ -386,7 +384,7 @@ with tab1:
     st.divider()
 
 
-    # --- 3. 오늘 수업 정보 입력 폼 ---
+   # --- 3. 오늘 수업 정보 입력 폼 (교재별 '번' 강제 추가 로직 제거 버전) ---
     with st.form("lesson_form"):
         st.write("### 📖 오늘 수업 정보")
         c_d, c_n = st.columns(2)
@@ -474,8 +472,7 @@ with tab1:
                     if page_str: page_str += f"~{h_end}"
                     else: page_str = f"{prefix}~{h_end}"
                 
-                if ("번" not in page_str) and (any(x in hb for x in ["쎈", "라이트쎈", "RPM", "플러스"])):
-                    if page_str and not page_str.endswith("번"): page_str += "번"
+                # 💡 [교정 완료] 특정 교재(쎈, RPM 등)일 때 자동으로 뒤에 "번"을 붙이던 조건문을 완전히 제거했습니다.
                     
                 note_str = f" ({h_note})" if h_note else ""
                 h_list.append(f"{hb}: {page_str}{note_str}".strip())
