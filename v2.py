@@ -572,7 +572,7 @@ with tab1:
     if col_h2.button("➖ 숙제칸-", key="btn_sub_hw"): 
         st.session_state.h_rows = max(1, st.session_state.h_rows - 1)
         st.rerun()
-# --- TAB 2: 학습 분석 (글자 깨짐 방지 + 순서 재배치 + 표 조판 최적화 종합 PDF 버전) ---
+# --- TAB 2: 학습 분석 (텍스트 + 표 + 그래프 한글 깨짐 완벽 방어 최종 버전) ---
 with tab2:
     st.markdown("## 📊 월별 상세 학습 통계")
     
@@ -659,7 +659,7 @@ with tab2:
 
             st.divider()
 
-            # --- 📌 2. 그래프 객체 미리 생성 (화면 출력 및 PDF 저장 공용) ---
+            # --- 📌 2. 그래프 객체 생성 및 폰트 사전 세팅 (화면용) ---
             # 그래프 A: 숙제 오답 파이
             if w_sums.sum() > 0:
                 fig_hw_pie = px.pie(values=w_sums.values, names=['계산실수', '개념부족', '고난도', '문제이해'], hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
@@ -694,7 +694,7 @@ with tab2:
             else: fig_test_bar = None
 
 
-            # --- 📄 [개선 엔지니어링] 시각화 PDF 레이아웃 재배치 및 글자 깨짐 방지 ---
+            # --- 📄 [개선 엔지니어링] 시각화 PDF 레이아웃 및 이미지 한글 강제 주입 ---
             with btn_c2:
                 try:
                     import io
@@ -717,7 +717,6 @@ with tab2:
 
                     def build_full_report_pdf():
                         pdf_buffer = io.BytesIO()
-                        # 여백 조절을 통해 공간 확보
                         doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=35, leftMargin=35, topMargin=35, bottomMargin=35)
                         styles = getSampleStyleSheet()
                         
@@ -725,24 +724,32 @@ with tab2:
                         sub_style = ParagraphStyle('T2', parent=styles['Heading2'], fontName='NanumGothic', fontSize=13, leading=18, spaceBefore=14, spaceAfter=8, textColor=colors.HexColor('#0369A1'))
                         b_style = ParagraphStyle('B1', parent=styles['Normal'], fontName='NanumGothic', fontSize=10, leading=16, spaceAfter=4)
                         
-                        # 표 내부 글자 깨짐 방지용 전용 스타일 스타일
-                        th_style = ParagraphStyle('TH', parent=styles['Normal'], fontName='NanumGothic', fontSize=9, leading=12, alignment=1, textColor=colors.HexColor('#1E293B')) # 중앙정렬
-                        td_style = ParagraphStyle('TD', parent=styles['Normal'], fontName='NanumGothic', fontSize=9, leading=13, alignment=1) # 중앙정렬
-                        td_left_style = ParagraphStyle('TDL', parent=styles['Normal'], fontName='NanumGothic', fontSize=9, leading=13, alignment=0) # 좌측정렬 (오답내용용)
+                        th_style = ParagraphStyle('TH', parent=styles['Normal'], fontName='NanumGothic', fontSize=9, leading=12, alignment=1, textColor=colors.HexColor('#1E293B'))
+                        td_style = ParagraphStyle('TD', parent=styles['Normal'], fontName='NanumGothic', fontSize=9, leading=13, alignment=1)
+                        td_left_style = ParagraphStyle('TDL', parent=styles['Normal'], fontName='NanumGothic', fontSize=9, leading=13, alignment=0)
                         
                         story = []
                         
-                        # [순서 변경 1] 대제목 시작
+                        # 1. 대제목 시작
                         story.append(Paragraph(f"<b>📊 {selected_month} 종합 학습 분석 보고서</b>", t_style))
                         story.append(Spacer(1, 5))
                         
-                        # [순서 변경 2] 핵심 오답 원인 분석 (차트 파트가 최상단으로 이동)
+                        # 💡 [핵심 패치] Plotly 이미지 렌더러에 나눔고딕 폰트 패밀리 강제 주입 함수
+                        def apply_chart_font(fig):
+                            if fig is not None:
+                                fig.update_layout(font=dict(family="NanumGothic", size=10))
+                            return fig
+
+                        # 2. 핵심 오답 원인 분석 (폰트 적용 후 이미지화)
                         story.append(Paragraph("<b>[1] 핵심 오답 원인 분석 (전체 분포)</b>", sub_style))
                         img_data_list = []
+                        
                         if fig_hw_pie:
-                            img_data_list.append(Image(io.BytesIO(fig_hw_pie.to_image(format="png")), width=245, height=195))
+                            f_hw_pie = apply_chart_font(fig_hw_pie)
+                            img_data_list.append(Image(io.BytesIO(f_hw_pie.to_image(format="png")), width=245, height=195))
                         if fig_test_pie:
-                            img_data_list.append(Image(io.BytesIO(fig_test_pie.to_image(format="png")), width=245, height=195))
+                            f_test_pie = apply_chart_font(fig_test_pie)
+                            img_data_list.append(Image(io.BytesIO(f_test_pie.to_image(format="png")), width=245, height=195))
                         
                         if img_data_list:
                             t_charts = Table([img_data_list], colWidths=[265, 265])
@@ -751,25 +758,27 @@ with tab2:
                         
                         story.append(Spacer(1, 10))
                         
-                        # [순서 변경 3] 회차별 추이 그래프 시각화들 배치
+                        # 3. 회차별 추이 그래프 시각화들 배치 (폰트 적용 후 이미지화)
                         story.append(Paragraph("<b>[2] 회차별 숙제 이행률 및 성적 변화 추이</b>", sub_style))
                         if fig_hw_line:
-                            story.append(Image(io.BytesIO(fig_hw_line.to_image(format="png")), width=510, height=200))
+                            f_hw_line = apply_chart_font(fig_hw_line)
+                            story.append(Image(io.BytesIO(f_hw_line.to_image(format="png")), width=510, height=200))
                         story.append(Spacer(1, 5))
                         if fig_hw_bar:
-                            story.append(Image(io.BytesIO(fig_hw_bar.to_image(format="png")), width=510, height=200))
+                            f_hw_bar = apply_chart_font(fig_hw_bar)
+                            story.append(Image(io.BytesIO(f_hw_bar.to_image(format="png")), width=510, height=200))
                         story.append(Spacer(1, 5))
                         if fig_test_bar:
-                            story.append(Image(io.BytesIO(fig_test_bar.to_image(format="png")), width=510, height=200))
+                            f_test_bar = apply_chart_font(fig_test_bar)
+                            story.append(Image(io.BytesIO(f_test_bar.to_image(format="png")), width=510, height=200))
                         
                         story.append(Spacer(1, 10))
                         
-                        # [순서 변경 4] 데일리 테스트 세부 리포트 표 양식 제작 (글자 깨짐 방지 래핑 및 잘림방지 묶음)
+                        # 4. 데일리 테스트 세부 리포트 표 양식 제작
                         table_story = []
                         table_story.append(Paragraph("<b>[3] 월간 데일리 테스트 상세 내역</b>", sub_style))
                         
                         if not df_test_table.empty:
-                            # 표 헤더 글자 깨짐 방지 (Paragraph화)
                             table_data = [[
                                 Paragraph("<b>시험일자</b>", th_style), 
                                 Paragraph("<b>테스트 명칭</b>", th_style), 
@@ -785,7 +794,6 @@ with tab2:
                                 if r['test_under'] > 0: e_parts.append(f"이해({int(r['test_under'])})")
                                 e_txt = ", ".join(e_parts) if e_parts else "만점! 💯"
                                 
-                                # 모든 셀 데이터를 Paragraph로 래핑하여 폰트 소실 및 한글 깨짐 원천 차단
                                 table_data.append([
                                     Paragraph(r['date'].strftime('%m/%d'), td_style),
                                     Paragraph(r['test_name'], td_left_style),
@@ -805,10 +813,9 @@ with tab2:
                         else:
                             table_story.append(Paragraph("해당 월에 진행된 정식 테스트 이력이 없습니다.", b_style))
                         
-                        # 표와 표 제목이 서로 다른 페이지로 찢어지지 않도록 강제 단일화 바인딩
                         story.append(KeepTogether(table_story))
                         
-                        # [순서 변경 5] 종합 글을 깔끔하게 마지막 단독 페이지로 넘겨 각인시킴
+                        # 5. 종합 글을 깔끔하게 마지막 단독 페이지로 넘김
                         story.append(PageBreak())
                         story.append(Paragraph(f"<b>📝 {selected_month} 담당 교사 종합 피드백 코멘트</b>", t_style))
                         story.append(Spacer(1, 10))
@@ -824,7 +831,7 @@ with tab2:
 
                     # 다운로드 버튼 매핑
                     st.download_button(
-                        label="📄 깨짐 없는 종합 학습분석 PDF 다운로드",
+                        label="📄 완벽 조판 종합 학습분석 PDF 다운로드",
                         data=build_full_report_pdf(),
                         file_name=f"{selected_month}_종합_학습분석_리포트.pdf",
                         mime="application/pdf",
@@ -834,7 +841,7 @@ with tab2:
                     st.error(f"⚠️ 종합 PDF 최적화 생성 대기 중... (원인: {str(ex)})")
 
 
-            # --- 📌 3. 화면 UI 시각화 렌더링 영역 (기존 화면 요소 유지) ---
+            # --- 📌 3. 화면 UI 시각화 렌더링 영역 ---
             st.markdown("### 📌 월간 통계 데이터 시각화 (화면 브리핑용)")
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("📈 월평균 이행률", f"{avg_hw}%")
