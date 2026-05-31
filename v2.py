@@ -592,7 +592,6 @@ with tab1:
         st.session_state.h_rows = max(1, st.session_state.h_rows - 1)
         st.rerun()
 
-# --- TAB 2: 학습 분석 (데일리 테스트 정답률 그래프 + 디자인 완성도 극대화 버전) ---
 with tab2:
     st.markdown("## 📊 월별 상세 학습 통계")
     
@@ -607,11 +606,61 @@ with tab2:
         if not df_filtered.empty:
             df_filtered['x_axis'] = df_filtered['date'].dt.strftime('%m/%d') + " (" + df_filtered['session_num'].astype(int).astype(str) + "회)"
             
-            # 1. 데이터 기본 통계 집계
+            # 1. 데이터 집계
             w_sums = df_filtered[['err_calc', 'err_concept', 'err_hard', 'err_understand']].sum()
             t_w_sums = df_filtered[['test_calc', 'test_concept', 'test_hard', 'test_under']].sum()
             avg_hw = int(df_filtered['hw_result_rate'].mean())
             total_dur = int(df_filtered['duration'].sum())
+            
+            # --- [수정] 그래프 객체 사전 생성 (함수보다 먼저 위치해야 함) ---
+            if w_sums.sum() > 0:
+                fig_hw_pie = px.pie(values=w_sums.values, names=['계산실수', '개념부족', '고난도', '문제이해'], hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+                fig_hw_pie.update_layout(margin=dict(t=20, b=20, l=10, r=10), width=350, height=300)
+            else: fig_hw_pie = None
+
+            if t_w_sums.sum() > 0:
+                fig_test_pie = px.pie(values=t_w_sums.values, names=['계산실수', '개념부족', '고난도', '문제이해'], hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe)
+                fig_test_pie.update_layout(margin=dict(t=20, b=20, l=10, r=10), width=350, height=300)
+            else: fig_test_pie = None
+
+            fig_hw_line = px.line(df_filtered, x='x_axis', y='hw_result_rate', markers=True, text='hw_result_rate', title="📊 회차별 숙제 이행률 추이(%)")
+            fig_hw_line.update_layout(xaxis_type='category', yaxis_range=[-5, 115], width=700, height=320)
+            fig_hw_line.update_traces(textposition="top center")
+
+            df_test_table = df_filtered[df_filtered['test_total'] > 0].copy()
+            if not df_test_table.empty:
+                df_test_table['score_rate'] = (df_test_table['test_score'] / df_test_table['test_total'] * 100).astype(int)
+                avg_test_rate = int(df_test_table['score_rate'].mean())
+                fig_test_line = px.line(df_test_table, x='x_axis', y='score_rate', markers=True, text='score_rate', title="🎯 회차별 데일리 테스트 정답률 추이(%)")
+                fig_test_line.update_layout(xaxis_type='category', yaxis_range=[-5, 115], width=700, height=320)
+                fig_test_line.update_traces(textposition="top center", line=dict(color='#EF4444', width=3))
+            else: 
+                fig_test_line = None
+                avg_test_rate = "기록 없음"
+
+            if w_sums.sum() > 0:
+                df_hw_bar = df_filtered.melt(id_vars=['x_axis'], value_vars=['err_calc', 'err_concept', 'err_hard', 'err_understand'], var_name='오답원인', value_name='개수')
+                df_hw_bar['오답원인'] = df_hw_bar['오답원인'].map({'err_calc': '계산실수', 'err_concept': '개념부족', 'err_hard': '고난도', 'err_understand': '문제이해'})
+                fig_hw_bar = px.bar(df_hw_bar, x='x_axis', y='개수', color='오답원인', title="📖 회차별 숙제 오답 원인 추이", color_discrete_sequence=px.colors.qualitative.Pastel)
+            else: fig_hw_bar = None
+
+            if t_w_sums.sum() > 0:
+                df_test_bar = df_filtered.melt(id_vars=['x_axis'], value_vars=['test_calc', 'test_concept', 'test_hard', 'test_under'], var_name='오답원인', value_name='개수')
+                df_test_bar['오답원인'] = df_test_bar['오답원인'].map({'test_calc': '계산실수', 'test_concept': '개념부족', 'test_hard': '고난도', 'test_under': '문제이해'})
+                fig_test_bar = px.bar(df_test_bar, x='x_axis', y='개수', color='오답원인', title="📝 회차별 테스트 오답 원인 추이", color_discrete_sequence=px.colors.qualitative.Safe)
+            else: fig_test_bar = None
+
+            # 2. AI 텍스트 생성 (위의 변수들 사용)
+            # (이하 report_text 생성 로직은 동일하게 유지...)
+            
+            # 3. PDF 발행 함수 (이미 생성된 fig_* 변수들을 참조)
+            def build_full_report_pdf():
+                # ... (기존 PDF 생성 로직 유지) ...
+                # 이제 build_full_report_pdf 안에서 fig_hw_line 등을 자유롭게 사용 가능!
+                pass
+
+            # 4. 버튼 및 UI 렌더링
+            # ... (이하 화면 출력 로직) ...
             
             # --- 🤖 AI 월간 종합 피드백 텍스트 생성 ---
             st.markdown("### 🤖 AI 월간 종합 브리핑 룸")
