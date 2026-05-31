@@ -741,6 +741,7 @@ with tab2:
                     try: pdfmetrics.getFont('NanumGothic')
                     except KeyError: pdfmetrics.registerFont(TTFont('NanumGothic', io.BytesIO(download_pdf_font())))
 
+                    # --- 📄 [프로페셔널 조판] PDF 생성 내부 로직 수정 버전 ---
                     def build_full_report_pdf():
                         pdf_buffer = io.BytesIO()
                         doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
@@ -751,52 +752,86 @@ with tab2:
                         b_style = ParagraphStyle('B1', parent=styles['Normal'], fontName='NanumGothic', fontSize=9.5, leading=16, spaceAfter=4, textColor=colors.HexColor('#334155'))
                         guide_style = ParagraphStyle('GD', parent=styles['Normal'], fontName='NanumGothic', fontSize=8.5, leading=13, alignment=1, textColor=colors.HexColor('#1E3A8A'))
                         
-                        # 그래프를 2개씩 한 줄에 배치하는 보조 함수
-                        def get_graph_pair(img1, img2):
-                            return Table([[img1, img2]], colWidths=[240, 240], hAlign='CENTER')
-                    
                         story = []
                         
                         # --- PAGE 1: 숙제 관련 그래프 ---
-                        p1_blocks = [Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서 (1/3)</b>", t_style)]
+                        p1_blocks = []
+                        p1_blocks.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서 (1/3)</b>", t_style))
                         
                         guide_box = Table([[Paragraph("<b>💡 [그래프 용어 가이드]</b> &nbsp;&nbsp; <b>Calc :</b> 계산 실수 &nbsp;|&nbsp; <b>Concept :</b> 개념 부족 &nbsp;|&nbsp; <b>Advanced :</b> 고난도 문항 &nbsp;|&nbsp; <b>Logic :</b> 문제 문해력 및 이해 부족", guide_style)]], colWidths=[520])
                         guide_box.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#EFF6FF')), ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#BFDBFE')), ('PADDING', (0,0), (-1,-1), 6), ('ALIGN', (0,0), (-1,-1), 'CENTER')]))
                         p1_blocks.append(guide_box)
-                        p1_blocks.append(Spacer(1, 20))
+                        p1_blocks.append(Spacer(1, 10))
                         
-                        if fig_hw_line and fig_hw_bar:
-                            p1_blocks.append(Paragraph("<b>[1] 및 [2] 숙제 학습 효율 및 오답 분석</b>", sub_style))
-                            img_hw_l = Image(io.BytesIO(copy.deepcopy(fig_hw_line).update_layout(title="Homework Rate (%)", height=160, width=220, font=dict(size=8), margin=dict(t=30, b=10, l=10, r=10)).to_image(format="png")), width=220, height=160)
-                            img_hw_b = Image(io.BytesIO(copy.deepcopy(fig_hw_bar).update_layout(title="Homework Errors", height=160, width=220, font=dict(size=8), margin=dict(t=30, b=10, l=10, r=10)).to_image(format="png")), width=220, height=160)
-                            p1_blocks.append(get_graph_pair(img_hw_l, img_hw_b))
+                        # 1. 숙제 이행률
+                        if fig_hw_line:
+                            pdf_hw_line = copy.deepcopy(fig_hw_line)
+                            pdf_hw_line.update_layout(title="Homework Completion Rate Trend (%)", xaxis_title="Session", yaxis_title="Rate (%)", font=dict(family="sans-serif", size=8), margin=dict(t=25, b=25))
+                            p1_blocks.append(Paragraph("<b>[1] 회차별 숙제 이행률 추이 그래프</b>", sub_style))
+                            p1_blocks.append(Image(io.BytesIO(pdf_hw_line.to_image(format="png")), width=480, height=200))
+                        
+                        # 2. 숙제 오답 분석
+                        if fig_hw_bar:
+                            pdf_hw_bar = copy.deepcopy(fig_hw_bar)
+                            pdf_hw_bar.update_layout(title="Homework Error Volume Trend", xaxis_title="Session", yaxis_title="Count", legend_title="Errors", font=dict(family="sans-serif", size=8), margin=dict(t=25, b=25))
+                            for trace in pdf_hw_bar.data:
+                                mapping = {'계산실수': 'Calc', '개념부족': 'Concept', '고난도': 'Advanced', '문제이해': 'Logic'}
+                                trace.name = mapping.get(trace.name, trace.name)
+                            p1_blocks.append(Paragraph("<b>[2] 숙제 회차별 오답 원인 분석 그래프</b>", sub_style))
+                            p1_blocks.append(Image(io.BytesIO(pdf_hw_bar.to_image(format="png")), width=480, height=200))
                         
                         story.append(KeepTogether(p1_blocks))
                         story.append(PageBreak())
                         
                         # --- PAGE 2: 테스트 관련 그래프 ---
-                        p2_blocks = [Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서 (2/3)</b>", t_style)]
+                        p2_blocks = []
+                        p2_blocks.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서 (2/3)</b>", t_style))
                         
-                        if fig_test_line and fig_test_bar:
-                            p2_blocks.append(Paragraph("<b>[3] 및 [4] 데일리 테스트 결과 및 오답 분석</b>", sub_style))
-                            img_t_l = Image(io.BytesIO(copy.deepcopy(fig_test_line).update_layout(title="Test Rate (%)", height=160, width=220, font=dict(size=8), margin=dict(t=30, b=10, l=10, r=10)).to_image(format="png")), width=220, height=160)
-                            img_t_b = Image(io.BytesIO(copy.deepcopy(fig_test_bar).update_layout(title="Test Errors", height=160, width=220, font=dict(size=8), margin=dict(t=30, b=10, l=10, r=10)).to_image(format="png")), width=220, height=160)
-                            p2_blocks.append(get_graph_pair(img_t_l, img_t_b))
+                        # 3. 테스트 결과
+                        if fig_test_line:
+                            pdf_test_line = copy.deepcopy(fig_test_line)
+                            pdf_test_line.update_layout(title="Daily Test Score Rate Trend (%)", xaxis_title="Session", yaxis_title="Rate (%)", font=dict(family="sans-serif", size=8), margin=dict(t=25, b=25))
+                            p2_blocks.append(Paragraph("<b>[3] 회차별 데일리 테스트 결과 그래프</b>", sub_style))
+                            p2_blocks.append(Image(io.BytesIO(pdf_test_line.to_image(format="png")), width=480, height=200))
+                            
+                        # 4. 테스트 오답 분석
+                        if fig_test_bar:
+                            pdf_test_bar = copy.deepcopy(fig_test_bar)
+                            pdf_test_bar.update_layout(title="Daily Test Error Volume Trend", xaxis_title="Session", yaxis_title="Count", legend_title="Errors", font=dict(family="sans-serif", size=8), margin=dict(t=25, b=25))
+                            for trace in pdf_test_bar.data:
+                                mapping = {'계산실수': 'Calc', '개념부족': 'Concept', '고난도': 'Advanced', '문제이해': 'Logic'}
+                                trace.name = mapping.get(trace.name, trace.name)
+                            p2_blocks.append(Paragraph("<b>[4] 데일리 테스트 오답 회차별 통계 그래프</b>", sub_style))
+                            p2_blocks.append(Image(io.BytesIO(pdf_test_bar.to_image(format="png")), width=480, height=200))
                             
                         story.append(KeepTogether(p2_blocks))
                         story.append(PageBreak())
                         
-                        # --- PAGE 3: 오답 분포 및 종합 피드백 ---
-                        p3_blocks = [Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서 (3/3)</b>", t_style)]
+                        # --- PAGE 3: 종합 피드백 ---
+                        p3_blocks = []
+                        p3_blocks.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서 (3/3)</b>", t_style))
                         
-                        if fig_hw_pie and fig_test_pie:
+                        # 5. 파이 차트 (오답 비중)
+                        img_pie_list = []
+                        if fig_hw_pie:
+                            pdf_hw_pie = copy.deepcopy(fig_hw_pie)
+                            pdf_hw_pie.update_layout(title="Homework Shares", font=dict(family="sans-serif", size=8.5))
+                            pdf_hw_pie.update_traces(labels=['Calc', 'Concept', 'Advanced', 'Logic'])
+                            img_pie_list.append(Image(io.BytesIO(pdf_hw_pie.to_image(format="png")), width=220, height=180))
+                        if fig_test_pie:
+                            pdf_test_pie = copy.deepcopy(fig_test_pie)
+                            pdf_test_pie.update_layout(title="Test Shares", font=dict(family="sans-serif", size=8.5))
+                            pdf_test_pie.update_traces(labels=['Calc', 'Concept', 'Advanced', 'Logic'])
+                            img_pie_list.append(Image(io.BytesIO(pdf_test_pie.to_image(format="png")), width=220, height=180))
+                            
+                        if img_pie_list:
+                            t_charts = Table([img_pie_list], colWidths=[250, 250])
                             p3_blocks.append(Paragraph("<b>[5] 월간 누적 전체 오답 유형 비중 분포</b>", sub_style))
-                            img_p1 = Image(io.BytesIO(copy.deepcopy(fig_hw_pie).update_layout(title="Homework Shares", height=180, width=220).to_image(format="png")), width=220, height=180)
-                            img_p2 = Image(io.BytesIO(copy.deepcopy(fig_test_pie).update_layout(title="Test Shares", height=180, width=220).to_image(format="png")), width=220, height=180)
-                            p3_blocks.append(get_graph_pair(img_p1, img_p2))
-                        
+                            p3_blocks.append(t_charts)
+                            
+                        # 종합 피드백
                         p3_blocks.append(Spacer(1, 20))
-                        p3_blocks.append(Paragraph("<b>📝 담당 교사 월간 종합 피드백</b>", t_style))
+                        p3_blocks.append(Paragraph(f"<b>📝 담당 교사 월간 종합 피드백</b>", t_style))
                         f_body = [Paragraph(line.strip(), b_style) for line in edited_report.split('\n') if line.strip() and not any(x in line for x in ['📊', '📌', '📝', '━━━━━━━━━━━━━━━━━━━━'])]
                         t_feedback = Table([[f_body]], colWidths=[520])
                         t_feedback.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F8FAFC')), ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#E2E8F0')), ('LINELEFT', (0,0), (-1,-1), 4, colors.HexColor('#1E3A8A')), ('PADDING', (0,0), (-1,-1), 10)]))
