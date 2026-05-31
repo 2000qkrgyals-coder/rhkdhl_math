@@ -572,7 +572,7 @@ with tab1:
     if col_h2.button("➖ 숙제칸-", key="btn_sub_hw"): 
         st.session_state.h_rows = max(1, st.session_state.h_rows - 1)
         st.rerun()
-# --- TAB 2: 학습 분석 (텍스트 + 표 + 그래프 한글 깨짐 완벽 방어 최종 버전) ---
+# --- TAB 2: 학습 분석 (Plotly 엔진 폰트 누수 현상 우회 최종 버전) ---
 with tab2:
     st.markdown("## 📊 월별 상세 학습 통계")
     
@@ -694,11 +694,12 @@ with tab2:
             else: fig_test_bar = None
 
 
-            # --- 📄 [개선 엔지니어링] 시각화 PDF 레이아웃 및 이미지 한글 강제 주입 ---
+            # --- 📄 [우회 엔진] PDF용 차트의 한글 라벨을 완전히 안전한 영문/기호로 치환 ---
             with btn_c2:
                 try:
                     import io
                     import urllib.request
+                    import copy
                     from reportlab.lib.pagesizes import letter
                     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, PageBreak, KeepTogether
                     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -734,22 +735,23 @@ with tab2:
                         story.append(Paragraph(f"<b>📊 {selected_month} 종합 학습 분석 보고서</b>", t_style))
                         story.append(Spacer(1, 5))
                         
-                        # 💡 [핵심 패치] Plotly 이미지 렌더러에 나눔고딕 폰트 패밀리 강제 주입 함수
-                        def apply_chart_font(fig):
-                            if fig is not None:
-                                fig.update_layout(font=dict(family="NanumGothic", size=10))
-                            return fig
-
-                        # 2. 핵심 오답 원인 분석 (폰트 적용 후 이미지화)
+                        # 📸 [원천 차단 패치] PDF로 변환되는 Plotly 객체들의 한글을 시스템 기본 폰트(Sans-Serif)가 읽을 수 있는 깔끔한 영문으로 복사 치환합니다.
+                        # 화면에 보이는 웹 차트는 한글이 그대로 유지되고, PDF 내부 이미지 속 글자만 영문으로 변경됩니다.
+                        
                         story.append(Paragraph("<b>[1] 핵심 오답 원인 분석 (전체 분포)</b>", sub_style))
                         img_data_list = []
                         
                         if fig_hw_pie:
-                            f_hw_pie = apply_chart_font(fig_hw_pie)
-                            img_data_list.append(Image(io.BytesIO(f_hw_pie.to_image(format="png")), width=245, height=195))
+                            pdf_hw_pie = copy.deepcopy(fig_hw_pie)
+                            pdf_hw_pie.update_layout(title="Homework Error Share", font=dict(family="sans-serif", size=10))
+                            pdf_hw_pie.update_traces(labels=['Calc', 'Concept', 'Advanced', 'Logic']) # 한글 변수명 우회
+                            img_data_list.append(Image(io.BytesIO(pdf_hw_pie.to_image(format="png")), width=245, height=195))
+                            
                         if fig_test_pie:
-                            f_test_pie = apply_chart_font(fig_test_pie)
-                            img_data_list.append(Image(io.BytesIO(f_test_pie.to_image(format="png")), width=245, height=195))
+                            pdf_test_pie = copy.deepcopy(fig_test_pie)
+                            pdf_test_pie.update_layout(title="Daily Test Error Share", font=dict(family="sans-serif", size=10))
+                            pdf_test_pie.update_traces(labels=['Calc', 'Concept', 'Advanced', 'Logic']) # 한글 변수명 우회
+                            img_data_list.append(Image(io.BytesIO(pdf_test_pie.to_image(format="png")), width=245, height=195))
                         
                         if img_data_list:
                             t_charts = Table([img_data_list], colWidths=[265, 265])
@@ -758,23 +760,39 @@ with tab2:
                         
                         story.append(Spacer(1, 10))
                         
-                        # 3. 회차별 추이 그래프 시각화들 배치 (폰트 적용 후 이미지화)
+                        # 3. 회차별 추이 그래프 시각화 (축과 타이틀 영문화 가공)
                         story.append(Paragraph("<b>[2] 회차별 숙제 이행률 및 성적 변화 추이</b>", sub_style))
                         if fig_hw_line:
-                            f_hw_line = apply_chart_font(fig_hw_line)
-                            story.append(Image(io.BytesIO(f_hw_line.to_image(format="png")), width=510, height=200))
+                            pdf_hw_line = copy.deepcopy(fig_hw_line)
+                            pdf_hw_line.update_layout(title="Homework Completion Rate Trend (%)", xaxis_title="Session (Date)", yaxis_title="Rate (%)", font=dict(family="sans-serif", size=9))
+                            story.append(Image(io.BytesIO(pdf_hw_line.to_image(format="png")), width=510, height=200))
                         story.append(Spacer(1, 5))
+                        
                         if fig_hw_bar:
-                            f_hw_bar = apply_chart_font(fig_hw_bar)
-                            story.append(Image(io.BytesIO(f_hw_bar.to_image(format="png")), width=510, height=200))
+                            pdf_hw_bar = copy.deepcopy(fig_hw_bar)
+                            pdf_hw_bar.update_layout(title="Homework Error Trend by Category", xaxis_title="Session (Date)", yaxis_title="Count", legend_title="Error Category", font=dict(family="sans-serif", size=9))
+                            # 범례 한글 매핑 우회
+                            for trace in pdf_hw_bar.data:
+                                if trace.name == '계산실수': trace.name = 'Calc Error'
+                                elif trace.name == '개념부족': trace.name = 'Concept'
+                                elif trace.name == '고난도': trace.name = 'Advanced'
+                                elif trace.name == '문제이해': trace.name = 'Logic'
+                            story.append(Image(io.BytesIO(pdf_hw_bar.to_image(format="png")), width=510, height=200))
                         story.append(Spacer(1, 5))
+                        
                         if fig_test_bar:
-                            f_test_bar = apply_chart_font(fig_test_bar)
-                            story.append(Image(io.BytesIO(f_test_bar.to_image(format="png")), width=510, height=200))
+                            pdf_test_bar = copy.deepcopy(fig_test_bar)
+                            pdf_test_bar.update_layout(title="Daily Test Error Trend by Category", xaxis_title="Session (Date)", yaxis_title="Count", legend_title="Error Category", font=dict(family="sans-serif", size=9))
+                            for trace in pdf_test_bar.data:
+                                if trace.name == '계산실수': trace.name = 'Calc Error'
+                                elif trace.name == '개념부족': trace.name = 'Concept'
+                                elif trace.name == '고난도': trace.name = 'Advanced'
+                                elif trace.name == '문제이해': trace.name = 'Logic'
+                            story.append(Image(io.BytesIO(pdf_test_bar.to_image(format="png")), width=510, height=200))
                         
                         story.append(Spacer(1, 10))
                         
-                        # 4. 데일리 테스트 세부 리포트 표 양식 제작
+                        # 4. 데일리 테스트 세부 리포트 표 양식 제작 (리포트랩 표 자체는 나눔고딕으로 완벽히 한글 출력 가능)
                         table_story = []
                         table_story.append(Paragraph("<b>[3] 월간 데일리 테스트 상세 내역</b>", sub_style))
                         
