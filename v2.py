@@ -572,7 +572,7 @@ with tab1:
     if col_h2.button("➖ 숙제칸-", key="btn_sub_hw"): 
         st.session_state.h_rows = max(1, st.session_state.h_rows - 1)
         st.rerun()
-# --- TAB 2: 학습 분석 (월간 분석 + AI 종합 총평 리포트 고도화 버전) ---
+# --- TAB 2: 학습 분석 (학생 전환 패치 + PDF 다운로드 추가 버전) ---
 with tab2:
     st.markdown("## 📊 월별 상세 학습 통계")
     
@@ -593,15 +593,13 @@ with tab2:
             avg_hw = int(df_filtered['hw_result_rate'].mean())
             total_dur = int(df_filtered['duration'].sum())
             
-            # --- 🤖 [🔥 신규 고도화] AI 월간 종합 피드백 리포트 시스템 ---
+            # --- 🤖 [패치 완료] AI 월간 종합 피드백 리포트 시스템 ---
             st.markdown("### 🤖 AI 월간 종합 브리핑 룸")
             
-            # 1. 오답 주원인 판별 로직
             max_hw_err = w_sums.idxmax() if w_sums.sum() > 0 else "none"
             err_mapping = {'err_calc': '계산 실수', 'err_concept': '개념 이해 부족', 'err_hard': '고난도 문항 진입 장벽', 'err_understand': '문제 문해력(이해) 부족', 'none': '없음'}
             main_err_name = err_mapping[max_hw_err]
             
-            # 2. 이행률 점수대별 동적 코멘트 생성
             if avg_hw >= 90:
                 hw_comment = "과제 수행도가 매우 우수합니다. 자기주도 학습 습관이 잘 잡혀있어 진도를 계획대로 탄탄하게 나가고 있습니다."
                 status_star = "⭐⭐⭐⭐⭐ (최우수)"
@@ -612,7 +610,6 @@ with tab2:
                 hw_comment = "현재 숙제 이행도가 다소 저조하여 진도 누수 우려가 있습니다. 학원/과외 시간 외에 스스로 복습하는 절대적인 시간 확보를 위해 가정에서도 함께 체크해 주시면 감사하겠습니다."
                 status_star = "⭐ (집중 관리 필요)"
 
-            # 3. 테스트 성적 요약 분석
             df_test_table = df_filtered[df_filtered['test_total'] > 0].copy()
             if not df_test_table.empty:
                 df_test_table['score_rate'] = (df_test_table['test_score'] / df_test_table['test_total'] * 100).astype(int)
@@ -622,7 +619,7 @@ with tab2:
                 avg_test_rate = "기록 없음"
                 test_comment = "이번 달 시행된 공식 데일리 테스트 피드백이 없습니다. 평소 단원 평가 성적을 기반으로 개념 다지기에 집중하고 있습니다."
 
-            # 4. 학부모 카톡 전송용 전체 텍스트 빌드
+            # 알림톡 텍스트 조립
             report_text = f"""[📊 {selected_month} 월간 학습 성적표 안내]
 
 안녕하세요 학부모님, 수학 담당 교사입니다. 
@@ -645,23 +642,84 @@ with tab2:
 • 테스트 및 취약점 분석:
 {test_comment}
 
-항상 믿고 맡겨주셔서 감사드립니다. 다음 달에는 이번 달에 발견된 취약 요소를 완벽하게 극복할 수 있도록 더욱 정밀하게 지도하겠습니다. 
+항상 믿고 맡겨주셔서 감사드립니다. 다음 달에는 발견된 취약 요소를 완벽하게 극복할 수 있도록 더욱 정밀하게 지도하겠습니다. 
 
 - 수학 교사 올림 -"""
 
-           # 화면에 AI 리포트 예쁘게 보여주기
+            # 화면에 AI 리포트 출력 (💡 key값에 s_id와 selected_month를 바인딩하여 학생 변경 시 실시간 새로고침 유도)
             with st.container(border=True):
                 st.markdown(f"#### 📝 **{selected_month} 학부모 브리핑 초안**")
-                st.text_area("카톡 전송용으로 다듬어진 텍스트입니다. 필요시 수정 후 복사하세요.", value=report_text, height=350, key="ai_report_area")
+                edited_report = st.text_area("카톡 전송용 텍스트 (수정 가능)", value=report_text, height=320, key=f"ai_rep_{s_id}_{selected_month}")
                 
-                # ✨ 외부 라이브러리 없이 Streamlit 순정 버튼으로 변경 완료!
-                if st.button("📋 이 알림톡 양식 통째로 복사하기", use_container_width=True):
-                    st.write('<script>navigator.clipboard.writeText(`' + report_text + '`);</script>', unsafe_allow_html=True)
-                    st.success("클립보드에 카톡 양식이 복사되었습니다! 카톡창에 붙여넣기(Ctrl+V) 하세요.")
+                btn_c1, btn_c2 = st.columns(2)
+                with btn_c1:
+                    if st.button("📋 이 알림톡 양식 통째로 복사하기", use_container_width=True):
+                        st.write('<script>navigator.clipboard.writeText(`' + edited_report + '`);</script>', unsafe_allow_html=True)
+                        st.success("클립보드에 복사되었습니다!")
+                
+                with btn_c2:
+                    # --- 📄 [신규] PDF 리포트 파일 빌드 로직 ---
+                    try:
+                        from reportlab.lib.pagesizes import letter
+                        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+                        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+                        from reportlab.pdfbase import pdfmetrics
+                        from reportlab.pdfbase.ttcounts import TTFontFile
+                        from reportlab.pdfbase.ttfonts import TTFont
+                        import urllib.request
+                        import io
+                        
+                        # 깨짐 방지용 원격 한글 폰트(나눔고딕) 메모리 임시 로드 및 등록
+                        @st.cache_data
+                        def load_font():
+                            font_url = "https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Regular.ttf"
+                            response = urllib.request.urlopen(font_url)
+                            return response.read()
+                        
+                        font_data = load_font()
+                        pdfmetrics.registerFont(TTFont('NanumGothic', io.BytesIO(font_data)))
+                        
+                        # PDF 생성 함수
+                        def generate_pdf(text_content):
+                            buffer = io.BytesIO()
+                            doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+                            styles = getSampleStyleSheet()
+                            
+                            # 한글 전용 스타일 설정
+                            title_style = ParagraphStyle('_Title', parent=styles['Heading1'], fontName='NanumGothic', fontSize=18, leading=22, spaceAfter=15)
+                            body_style = ParagraphStyle('_Body', parent=styles['Normal'], fontName='NanumGothic', fontSize=11, leading=16, spaceAfter=8)
+                            
+                            story = []
+                            story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 리포트</b>", title_style))
+                            story.append(Spacer(1, 10))
+                            
+                            # 줄바꿈 단락 파싱 처리
+                            for line in text_content.split('\n'):
+                                clean_line = line.replace('━━━━━━━━━━━━━━━━━━━━', '--------------------------------------------')
+                                if clean_line.strip() == "":
+                                    story.append(Spacer(1, 6))
+                                else:
+                                    story.append(Paragraph(clean_line, body_style))
+                                    
+                            doc.build(story)
+                            buffer.seek(0)
+                            return buffer.getvalue()
+                        
+                        pdf_data = generate_pdf(edited_report)
+                        
+                        st.download_button(
+                            label="📄 월간 분석 PDF 다운로드",
+                            data=pdf_data,
+                            file_name=f"{selected_month}_학습분석리포트.pdf",
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+                    except Exception as pdf_err:
+                        st.error(f"PDF 생성 모듈 로드 실패 (requirements.txt에 reportlab 확인 요망)")
 
             st.divider()
 
-            # --- 🟢 [기존 그래프 및 세부 대시보드 유지] ---
+            # --- [기존 시각화 요소 유지 코드] ---
             st.markdown("### 📌 월간 통계 데이터 시각화")
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("📈 월평균 이행률", f"{avg_hw}%")
@@ -688,7 +746,6 @@ with tab2:
 
             st.divider()
             
-            # 회차별 상세 변화 추이 (탭)
             st.markdown("### 📈 회차별 상세 변화 추이")
             chart_tab1, chart_tab2, chart_tab3 = st.tabs(["✍️ 숙제 이행률", "📖 숙제 오답 추이", "📝 테스트 오답 추이"])
             
@@ -718,7 +775,6 @@ with tab2:
 
             st.divider()
 
-            # 월간 데일리 테스트 리포트 (익스팬더)
             st.markdown("### 🏆 월간 데일리 테스트 리포트")
             if not df_test_table.empty:
                 for idx, row in df_test_table.iterrows():
@@ -738,15 +794,7 @@ with tab2:
                         
                         err_parts = []
                         if row['test_calc'] > 0: err_parts.append(f"계산실수({int(row['test_calc'])})")
-                        if row['test_concept'] > 0: err_parts.append(f"개념부족({int(row['test_concept'])})")
-                        if row['test_hard'] > 0: err_parts.append(f"고난도({int(row['test_hard'])})")
-                        if row['test_under'] > 0: err_parts.append(f"문제이해({int(row['test_under'])})")
-                        
-                        err_text = ", ".join(err_parts) if err_parts else "틀린 문제 없음 (만점! 💯)"
-                        tc_3.markdown(f"🔍 **오답 세부 원인:**\n\n`{err_text}`")
-            else: st.info("💡 이번 달에 진행된 데일리 테스트 기록이 존재하지 않습니다.")
-                
-    else: st.info("📊 학습 분석을 진행할 세션 데이터가 아직 입력되지 않았습니다.")
+                        if row['test_concept'] > 0: err_parts.append(f"개념부족({int(
 
 # --- TAB 3: 교재 관리 ---
 with tab3:
