@@ -690,18 +690,19 @@ with tab2:
                 fig_test_pie.update_layout(margin=dict(t=20, b=20, l=10, r=10), width=350, height=300)
             else: fig_test_pie = None
 
-            # 📈 그래프 C: 회차별 숙제 이행률 라인
+            # 📈 그래프 A: 회차별 숙제 이행률 라인
             fig_hw_line = px.line(df_filtered, x='x_axis', y='hw_result_rate', markers=True, text='hw_result_rate', title="📊 회차별 숙제 이행률 추이(%)")
             fig_hw_line.update_layout(xaxis_type='category', yaxis_range=[-5, 115], width=700, height=320)
             fig_hw_line.update_traces(textposition="top center")
 
-            # 📈 [신규] 그래프 C-2: 회차별 데일리 테스트 정답률 라인 (화면용)
+            # 📈 그래프 B: 회차별 데일리 테스트 정답률 라인
             if not df_test_table.empty:
                 fig_test_line = px.line(df_test_table, x='x_axis', y='score_rate', markers=True, text='score_rate', title="🎯 회차별 데일리 테스트 정답률 추이(%)")
                 fig_test_line.update_layout(xaxis_type='category', yaxis_range=[-5, 115], width=700, height=320)
-                fig_test_line.update_traces(textposition="top center", line=dict(color='#EF4444', width=3)) # 명확히 구분되도록 빨간색 계열 선 세팅
+                fig_test_line.update_traces(textposition="top center", line=dict(color='#EF4444', width=3))
             else: fig_test_line = None
 
+            # 📈 그래프 C: 회차별 숙제 오답 원인 누적 바
             if w_sums.sum() > 0:
                 df_hw_bar = df_filtered.melt(id_vars=['x_axis'], value_vars=['err_calc', 'err_concept', 'err_hard', 'err_understand'], var_name='오답원인', value_name='개수')
                 df_hw_bar['오답원인'] = df_hw_bar['오답원인'].map({'err_calc': '계산실수', 'err_concept': '개념부족', 'err_hard': '고난도', 'err_understand': '문제이해'})
@@ -709,6 +710,7 @@ with tab2:
                 fig_hw_bar.update_layout(xaxis_type='category', width=700, height=320)
             else: fig_hw_bar = None
 
+            # 📈 그래프 D: 회차별 테스트 오답 원인 누적 바
             if t_w_sums.sum() > 0:
                 df_test_bar = df_filtered.melt(id_vars=['x_axis'], value_vars=['test_calc', 'test_concept', 'test_hard', 'test_under'], var_name='오답원인', value_name='개수')
                 df_test_bar['오답원인'] = df_test_bar['오답원인'].map({'test_calc': '계산실수', 'test_concept': '개념부족', 'test_hard': '고난도', 'test_under': '문제이해'})
@@ -744,11 +746,11 @@ with tab2:
                         doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
                         styles = getSampleStyleSheet()
                         
-                        t_style = ParagraphStyle('T1', parent=styles['Heading1'], fontName='NanumGothic', fontSize=20, leading=26, spaceAfter=15, textColor=colors.HexColor('#1E3A8A'))
-                        sub_style = ParagraphStyle('T2', parent=styles['Heading2'], fontName='NanumGothic', fontSize=12, leading=16, spaceBefore=12, spaceAfter=6, textColor=colors.HexColor('#0F172A'))
+                        t_style = ParagraphStyle('T1', parent=styles['Heading1'], fontName='NanumGothic', fontSize=18, leading=24, spaceAfter=12, textColor=colors.HexColor('#1E3A8A'))
+                        sub_style = ParagraphStyle('T2', parent=styles['Heading2'], fontName='NanumGothic', fontSize=11, leading=15, spaceBefore=14, spaceAfter=6, textColor=colors.HexColor('#1E3A8A'))
                         b_style = ParagraphStyle('B1', parent=styles['Normal'], fontName='NanumGothic', fontSize=9.5, leading=16, spaceAfter=4, textColor=colors.HexColor('#334155'))
                         
-                        guide_style = ParagraphStyle('GD', parent=styles['Normal'], fontName='NanumGothic', fontSize=8.5, leading=12, alignment=1, textColor=colors.HexColor('#1E3A8A'))
+                        guide_style = ParagraphStyle('GD', parent=styles['Normal'], fontName='NanumGothic', fontSize=8.5, leading=13, alignment=1, textColor=colors.HexColor('#1E3A8A'))
                         
                         th_style = ParagraphStyle('TH', parent=styles['Normal'], fontName='NanumGothic', fontSize=9, leading=12, alignment=1, textColor=colors.white)
                         td_style = ParagraphStyle('TD', parent=styles['Normal'], fontName='NanumGothic', fontSize=9, leading=13, alignment=1, textColor=colors.HexColor('#1E293B'))
@@ -758,30 +760,9 @@ with tab2:
                         
                         # 1. 헤더 메인 타이틀 세팅
                         story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서</b>", t_style))
-                        story.append(Spacer(1, 2))
+                        story.append(Spacer(1, 4))
                         
-                        # 2. 오답 분포 파이 차트 배치
-                        story.append(Paragraph("<b>[1] 핵심 오답 유발 요인 분석 (전체 비중)</b>", sub_style))
-                        img_data_list = []
-                        
-                        if fig_hw_pie:
-                            pdf_hw_pie = copy.deepcopy(fig_hw_pie)
-                            pdf_hw_pie.update_layout(title="Homework Category Shares", font=dict(family="sans-serif", size=10))
-                            pdf_hw_pie.update_traces(labels=['Calc', 'Concept', 'Advanced', 'Logic'])
-                            img_data_list.append(Image(io.BytesIO(pdf_hw_pie.to_image(format="png")), width=240, height=180))
-                            
-                        if fig_test_pie:
-                            pdf_test_pie = copy.deepcopy(fig_test_pie)
-                            pdf_test_pie.update_layout(title="Daily Test Category Shares", font=dict(family="sans-serif", size=10))
-                            pdf_test_pie.update_traces(labels=['Calc', 'Concept', 'Advanced', 'Logic'])
-                            img_data_list.append(Image(io.BytesIO(pdf_test_pie.to_image(format="png")), width=240, height=180))
-                        
-                        if img_data_list:
-                            t_charts = Table([img_data_list], colWidths=[260, 260])
-                            t_charts.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'MIDDLE')]))
-                            story.append(t_charts)
-                        
-                        # 차트 용어 매핑 가이드라인 박스
+                        # 🚀 [수정 사항 ①] 최상단 그래프 용어 가이드라인 배치
                         guide_box = Table([[Paragraph("<b>💡 [그래프 용어 가이드]</b> &nbsp;&nbsp; <b>Calc :</b> 계산 실수 &nbsp;|&nbsp; <b>Concept :</b> 개념 부족 &nbsp;|&nbsp; <b>Advanced :</b> 고난도 문항 &nbsp;|&nbsp; <b>Logic :</b> 문제 문해력 및 이해 부족", guide_style)]], colWidths=[520])
                         guide_box.setStyle(TableStyle([
                             ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#EFF6FF')),
@@ -790,52 +771,97 @@ with tab2:
                             ('ALIGN', (0,0), (-1,-1), 'CENTER')
                         ]))
                         story.append(guide_box)
-                        story.append(Spacer(1, 12))
+                        story.append(Spacer(1, 10))
                         
-                        # 3. 회차별 추이 차트 섹션 (성적 곡선 추가 및 여백 타이트 관리)
-                        story.append(Paragraph("<b>[2] 세션 회차별 성적 및 과제 성실도 변화 추이</b>", sub_style))
+                        # 🚀 [수정 사항 ②] 요청하신 명확한 그래프 정렬 순서 적용 및 KeepTogether 연동
                         
-                        trend_story = []
+                        # 순서 1: 회차별 숙제 이행률 그래프
                         if fig_hw_line:
                             pdf_hw_line = copy.deepcopy(fig_hw_line)
-                            pdf_hw_line.update_layout(title="Homework Completion Rate Trend (%)", xaxis_title="Session", yaxis_title="Rate (%)", font=dict(family="sans-serif", size=8.5), margin=dict(t=30, b=30))
-                            trend_story.append(Image(io.BytesIO(pdf_hw_line.to_image(format="png")), width=520, height=155))
-                            trend_story.append(Spacer(1, 4))
-                        
-                        # ✨ [신규 PDF 패치] 데일리 테스트 정답률 흐름 차트 조판 추가
-                        if fig_test_line:
-                            pdf_test_line = copy.deepcopy(fig_test_line)
-                            pdf_test_line.update_layout(title="Daily Test Score Rate Trend (%)", xaxis_title="Session", yaxis_title="Rate (%)", font=dict(family="sans-serif", size=8.5), margin=dict(t=30, b=30))
-                            trend_story.append(Image(io.BytesIO(pdf_test_line.to_image(format="png")), width=520, height=155))
-                            trend_story.append(Spacer(1, 4))
-                        
+                            pdf_hw_line.update_layout(title="Homework Completion Rate Trend (%)", xaxis_title="Session", yaxis_title="Rate (%)", font=dict(family="sans-serif", size=8), margin=dict(t=25, b=25))
+                            g1_block = [
+                                Paragraph("<b>[1] 회차별 숙제 이행률 추이 그래프</b>", sub_style),
+                                Spacer(1, 4),
+                                Image(io.BytesIO(pdf_hw_line.to_image(format="png")), width=480, height=140),
+                                Spacer(1, 8)
+                            ]
+                            story.append(KeepTogether(g1_block))
+
+                        # 순서 2: 숙제 회차별 오답분석 그래프 (바 차트)
                         if fig_hw_bar:
                             pdf_hw_bar = copy.deepcopy(fig_hw_bar)
-                            pdf_hw_bar.update_layout(title="Homework Error Volume Trend", xaxis_title="Session", yaxis_title="Count", legend_title="Errors", font=dict(family="sans-serif", size=8.5), margin=dict(t=30, b=30))
+                            pdf_hw_bar.update_layout(title="Homework Error Volume Trend", xaxis_title="Session", yaxis_title="Count", legend_title="Errors", font=dict(family="sans-serif", size=8), margin=dict(t=25, b=25))
                             for trace in pdf_hw_bar.data:
                                 if trace.name == '계산실수': trace.name = 'Calc'
                                 elif trace.name == '개념부족': trace.name = 'Concept'
                                 elif trace.name == '고난도': trace.name = 'Advanced'
                                 elif trace.name == '문제이해': trace.name = 'Logic'
-                            trend_story.append(Image(io.BytesIO(pdf_hw_bar.to_image(format="png")), width=520, height=155))
-                            trend_story.append(Spacer(1, 4))
-                            
+                            g2_block = [
+                                Paragraph("<b>[2] 숙제 회차별 오답 원인 분석 그래프</b>", sub_style),
+                                Spacer(1, 4),
+                                Image(io.BytesIO(pdf_hw_bar.to_image(format="png")), width=480, height=140),
+                                Spacer(1, 8)
+                            ]
+                            story.append(KeepTogether(g2_block))
+
+                        # 순서 3: 회차별 테스트 결과 그래프 (정답률 라인 차트)
+                        if fig_test_line:
+                            pdf_test_line = copy.deepcopy(fig_test_line)
+                            pdf_test_line.update_layout(title="Daily Test Score Rate Trend (%)", xaxis_title="Session", yaxis_title="Rate (%)", font=dict(family="sans-serif", size=8), margin=dict(t=25, b=25))
+                            g3_block = [
+                                Paragraph("<b>[3] 회차별 데일리 테스트 결과 그래프</b>", sub_style),
+                                Spacer(1, 4),
+                                Image(io.BytesIO(pdf_test_line.to_image(format="png")), width=480, height=140),
+                                Spacer(1, 8)
+                            ]
+                            story.append(KeepTogether(g3_block))
+
+                        # 순서 4: 테스트 오답 회차별 그래프 (바 차트)
                         if fig_test_bar:
                             pdf_test_bar = copy.deepcopy(fig_test_bar)
-                            pdf_test_bar.update_layout(title="Daily Test Error Volume Trend", xaxis_title="Session", yaxis_title="Count", legend_title="Errors", font=dict(family="sans-serif", size=8.5), margin=dict(t=30, b=30))
+                            pdf_test_bar.update_layout(title="Daily Test Error Volume Trend", xaxis_title="Session", yaxis_title="Count", legend_title="Errors", font=dict(family="sans-serif", size=8), margin=dict(t=25, b=25))
                             for trace in pdf_test_bar.data:
                                 if trace.name == '계산실수': trace.name = 'Calc'
                                 elif trace.name == '개념부족': trace.name = 'Concept'
                                 elif trace.name == '고난도': trace.name = 'Advanced'
                                 elif trace.name == '문제이해': trace.name = 'Logic'
-                            trend_story.append(Image(io.BytesIO(pdf_test_bar.to_image(format="png")), width=520, height=155))
-                        
-                        story.append(KeepTogether(trend_story))
-                        story.append(Spacer(1, 12))
+                            g4_block = [
+                                Paragraph("<b>[4] 데일리 테스트 오답 회차별 통계 그래프</b>", sub_style),
+                                Spacer(1, 4),
+                                Image(io.BytesIO(pdf_test_bar.to_image(format="png")), width=480, height=140),
+                                Spacer(1, 8)
+                            ]
+                            story.append(KeepTogether(g4_block))
+
+                        # 순서 5: 전체 핵심 오답 분포 그래프 (파이 차트 2개 병렬 배치)
+                        img_pie_list = []
+                        if fig_hw_pie:
+                            pdf_hw_pie = copy.deepcopy(fig_hw_pie)
+                            pdf_hw_pie.update_layout(title="Homework Shares", font=dict(family="sans-serif", size=8.5))
+                            pdf_hw_pie.update_traces(labels=['Calc', 'Concept', 'Advanced', 'Logic'])
+                            img_pie_list.append(Image(io.BytesIO(pdf_hw_pie.to_image(format="png")), width=220, height=150))
+                            
+                        if fig_test_pie:
+                            pdf_test_pie = copy.deepcopy(fig_test_pie)
+                            pdf_test_pie.update_layout(title="Test Shares", font=dict(family="sans-serif", size=8.5))
+                            pdf_test_pie.update_traces(labels=['Calc', 'Concept', 'Advanced', 'Logic'])
+                            img_pie_list.append(Image(io.BytesIO(pdf_test_pie.to_image(format="png")), width=220, height=150))
+                            
+                        if img_pie_list:
+                            t_charts = Table([img_pie_list], colWidths=[250, 250])
+                            t_charts.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'MIDDLE')]))
+                            g5_block = [
+                                Paragraph("<b>[5] 월간 누적 전체 오답 유형 비중 분포</b>", sub_style),
+                                Spacer(1, 4),
+                                t_charts,
+                                Spacer(1, 10)
+                            ]
+                            story.append(KeepTogether(g5_block))
                         
                         # 4. 데일리 테스트 표 디자인 영역
                         table_story = []
-                        table_story.append(Paragraph("<b>[3] 월간 데일리 테스트 상세 평정 내역</b>", sub_style))
+                        table_story.append(Paragraph("<b>[6] 월간 데일리 테스트 세부 평정 테이블</b>", sub_style))
+                        table_story.append(Spacer(1, 4))
                         
                         if not df_test_table.empty:
                             table_data = [[
@@ -865,8 +891,8 @@ with tab2:
                                 ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1E3A8A')),
                                 ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
                                 ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-                                ('TOPPADDING', (0,0), (-1,-1), 5),
-                                ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+                                ('TOPPADDING', (0,0), (-1,-1), 4),
+                                ('BOTTOMPADDING', (0,0), (-1,-1), 4),
                                 ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#F8FAFC')])
                             ]))
                             table_story.append(t_report)
@@ -874,11 +900,11 @@ with tab2:
                             table_story.append(Paragraph("해당 월에 진행된 정식 테스트 이력이 없습니다.", b_style))
                         
                         story.append(KeepTogether(table_story))
-                        story.append(Spacer(1, 15))
+                        story.append(Spacer(1, 14))
                         
                         # 5. 종합 피드백 섹션 박스 조판
                         feedback_story = []
-                        feedback_story.append(Paragraph(f"<b>📝 담당 교사 종합 학습 피드백</b>", t_style))
+                        feedback_story.append(Paragraph(f"<b>📝 담당 교사 월간 종합 종합 피드백</b>", t_style))
                         feedback_story.append(Spacer(1, 4))
                         
                         f_body = []
@@ -893,7 +919,7 @@ with tab2:
                             ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F8FAFC')),
                             ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#E2E8F0')),
                             ('LINELEFT', (0,0), (-1,-1), 4, colors.HexColor('#1E3A8A')),
-                            ('PADDING', (0,0), (-1,-1), 12)
+                            ('PADDING', (0,0), (-1,-1), 10)
                         ]))
                         feedback_story.append(t_feedback)
                         
@@ -943,15 +969,21 @@ with tab2:
             
             with chart_tab1:
                 st.plotly_chart(fig_hw_line, use_container_width=True)
-            with chart_tab2:
-                if fig_test_line: st.plotly_chart(fig_test_line, use_container_width=True)
-                else: st.caption("💡 테스트 성적 추이 데이터가 없습니다.")
-            with chart_tab3:
-                if fig_hw_bar: st.plotly_chart(fig_hw_bar, use_container_width=True)
-                else: st.caption("💡 숙제 오답 추이 데이터가 없습니다.")
-            with chart_tab4:
-                if fig_test_bar: st.plotly_chart(fig_test_bar, use_container_width=True)
-                else: st.caption("💡 테스트 오답 추이 데이터가 없습니다.")
+            if fig_test_line:
+                with chart_tab2:
+                    st.plotly_chart(fig_test_line, use_container_width=True)
+            else:
+                with chart_tab2: st.caption("💡 테스트 성적 추이 데이터가 없습니다.")
+            if fig_hw_bar:
+                with chart_tab3:
+                    st.plotly_chart(fig_hw_bar, use_container_width=True)
+            else:
+                with chart_tab3: st.caption("💡 숙제 오답 추이 데이터가 없습니다.")
+            if fig_test_bar:
+                with chart_tab4:
+                    st.plotly_chart(fig_test_bar, use_container_width=True)
+            else:
+                with chart_tab4: st.caption("💡 테스트 오답 추이 데이터가 없습니다.")
 
             st.divider()
 
