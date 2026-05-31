@@ -572,7 +572,7 @@ with tab1:
     if col_h2.button("➖ 숙제칸-", key="btn_sub_hw"): 
         st.session_state.h_rows = max(1, st.session_state.h_rows - 1)
         st.rerun()
-# --- TAB 2: 학습 분석 (Plotly 엔진 폰트 누수 현상 우회 최종 버전) ---
+# --- TAB 2: 학습 분석 (디자인 완성도 극대화 + 한글 가이드라인 매핑 버전) ---
 with tab2:
     st.markdown("## 📊 월별 상세 학습 통계")
     
@@ -659,25 +659,21 @@ with tab2:
 
             st.divider()
 
-            # --- 📌 2. 그래프 객체 생성 및 폰트 사전 세팅 (화면용) ---
-            # 그래프 A: 숙제 오답 파이
+            # --- 📌 2. 그래프 객체 생성 및 폰트 사전 세팅 (화면 브리핑용 - 한글 100% 정상 작동) ---
             if w_sums.sum() > 0:
                 fig_hw_pie = px.pie(values=w_sums.values, names=['계산실수', '개념부족', '고난도', '문제이해'], hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
                 fig_hw_pie.update_layout(margin=dict(t=20, b=20, l=10, r=10), width=350, height=300)
             else: fig_hw_pie = None
 
-            # 그래프 B: 테스트 오답 파이
             if t_w_sums.sum() > 0:
                 fig_test_pie = px.pie(values=t_w_sums.values, names=['계산실수', '개념부족', '고난도', '문제이해'], hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe)
                 fig_test_pie.update_layout(margin=dict(t=20, b=20, l=10, r=10), width=350, height=300)
             else: fig_test_pie = None
 
-            # 그래프 C: 회차별 숙제 이행률 라인
             fig_hw_line = px.line(df_filtered, x='x_axis', y='hw_result_rate', markers=True, text='hw_result_rate', title="📊 회차별 숙제 이행률 추이(%)")
             fig_hw_line.update_layout(xaxis_type='category', yaxis_range=[-5, 115], width=700, height=320)
             fig_hw_line.update_traces(textposition="top center")
 
-            # 그래프 D: 숙제 오답 누적 막대
             if w_sums.sum() > 0:
                 df_hw_bar = df_filtered.melt(id_vars=['x_axis'], value_vars=['err_calc', 'err_concept', 'err_hard', 'err_understand'], var_name='오답원인', value_name='개수')
                 df_hw_bar['오답원인'] = df_hw_bar['오답원인'].map({'err_calc': '계산실수', 'err_concept': '개념부족', 'err_hard': '고난도', 'err_understand': '문제이해'})
@@ -685,7 +681,6 @@ with tab2:
                 fig_hw_bar.update_layout(xaxis_type='category', width=700, height=320)
             else: fig_hw_bar = None
 
-            # 그래프 E: 테스트 오답 누적 막대
             if t_w_sums.sum() > 0:
                 df_test_bar = df_filtered.melt(id_vars=['x_axis'], value_vars=['test_calc', 'test_concept', 'test_hard', 'test_under'], var_name='오답원인', value_name='개수')
                 df_test_bar['오답원인'] = df_test_bar['오답원인'].map({'test_calc': '계산실수', 'test_concept': '개념부족', 'test_hard': '고난도', 'test_under': '문제이해'})
@@ -694,7 +689,7 @@ with tab2:
             else: fig_test_bar = None
 
 
-            # --- 📄 [우회 엔진] PDF용 차트의 한글 라벨을 완전히 안전한 영문/기호로 치환 ---
+            # --- 📄 [프로페셔널 조판] PDF 생성 내부 로직 보완 ---
             with btn_c2:
                 try:
                     import io
@@ -718,90 +713,104 @@ with tab2:
 
                     def build_full_report_pdf():
                         pdf_buffer = io.BytesIO()
-                        doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=35, leftMargin=35, topMargin=35, bottomMargin=35)
+                        # 대충 만든 느낌을 없애기 위해 마진 슬림화 및 그리드 정렬 조정
+                        doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
                         styles = getSampleStyleSheet()
                         
-                        t_style = ParagraphStyle('T1', parent=styles['Heading1'], fontName='NanumGothic', fontSize=18, leading=24, spaceAfter=14, textColor=colors.HexColor('#1E3A8A'))
-                        sub_style = ParagraphStyle('T2', parent=styles['Heading2'], fontName='NanumGothic', fontSize=13, leading=18, spaceBefore=14, spaceAfter=8, textColor=colors.HexColor('#0369A1'))
-                        b_style = ParagraphStyle('B1', parent=styles['Normal'], fontName='NanumGothic', fontSize=10, leading=16, spaceAfter=4)
+                        # 폰트 스타일 가독성 및 자간 조정
+                        t_style = ParagraphStyle('T1', parent=styles['Heading1'], fontName='NanumGothic', fontSize=20, leading=26, spaceAfter=15, textColor=colors.HexColor('#1E3A8A'))
+                        sub_style = ParagraphStyle('T2', parent=styles['Heading2'], fontName='NanumGothic', fontSize=12, leading=16, spaceBefore=12, spaceAfter=6, textColor=colors.HexColor('#0F172A'))
+                        b_style = ParagraphStyle('B1', parent=styles['Normal'], fontName='NanumGothic', fontSize=9.5, leading=16, spaceAfter=4, textColor=colors.HexColor('#334155'))
                         
-                        th_style = ParagraphStyle('TH', parent=styles['Normal'], fontName='NanumGothic', fontSize=9, leading=12, alignment=1, textColor=colors.HexColor('#1E293B'))
-                        td_style = ParagraphStyle('TD', parent=styles['Normal'], fontName='NanumGothic', fontSize=9, leading=13, alignment=1)
-                        td_left_style = ParagraphStyle('TDL', parent=styles['Normal'], fontName='NanumGothic', fontSize=9, leading=13, alignment=0)
+                        # 💡 [신규] 차트 하단 용어 해설용 전용 가이드 스타일
+                        guide_style = ParagraphStyle('GD', parent=styles['Normal'], fontName='NanumGothic', fontSize=8.5, leading=12, alignment=1, textColor=colors.HexColor('#1E3A8A'))
+                        
+                        th_style = ParagraphStyle('TH', parent=styles['Normal'], fontName='NanumGothic', fontSize=9, leading=12, alignment=1, textColor=colors.white)
+                        td_style = ParagraphStyle('TD', parent=styles['Normal'], fontName='NanumGothic', fontSize=9, leading=13, alignment=1, textColor=colors.HexColor('#1E293B'))
+                        td_left_style = ParagraphStyle('TDL', parent=styles['Normal'], fontName='NanumGothic', fontSize=9, leading=13, alignment=0, textColor=colors.HexColor('#1E293B'))
                         
                         story = []
                         
-                        # 1. 대제목 시작
-                        story.append(Paragraph(f"<b>📊 {selected_month} 종합 학습 분석 보고서</b>", t_style))
-                        story.append(Spacer(1, 5))
+                        # 1. 헤더 메인 타이틀 세팅
+                        story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서</b>", t_style))
+                        story.append(Spacer(1, 2))
                         
-                        # 📸 [원천 차단 패치] PDF로 변환되는 Plotly 객체들의 한글을 시스템 기본 폰트(Sans-Serif)가 읽을 수 있는 깔끔한 영문으로 복사 치환합니다.
-                        # 화면에 보이는 웹 차트는 한글이 그대로 유지되고, PDF 내부 이미지 속 글자만 영문으로 변경됩니다.
-                        
-                        story.append(Paragraph("<b>[1] 핵심 오답 원인 분석 (전체 분포)</b>", sub_style))
+                        # 2. 오답 분포 파이 차트 배치
+                        story.append(Paragraph("<b>[1] 핵심 오답 유발 요인 분석 (전체 비중)</b>", sub_style))
                         img_data_list = []
                         
                         if fig_hw_pie:
                             pdf_hw_pie = copy.deepcopy(fig_hw_pie)
-                            pdf_hw_pie.update_layout(title="Homework Error Share", font=dict(family="sans-serif", size=10))
-                            pdf_hw_pie.update_traces(labels=['Calc', 'Concept', 'Advanced', 'Logic']) # 한글 변수명 우회
-                            img_data_list.append(Image(io.BytesIO(pdf_hw_pie.to_image(format="png")), width=245, height=195))
+                            pdf_hw_pie.update_layout(title="Homework Category Shares", font=dict(family="sans-serif", size=10))
+                            pdf_hw_pie.update_traces(labels=['Calc', 'Concept', 'Advanced', 'Logic'])
+                            img_data_list.append(Image(io.BytesIO(pdf_hw_pie.to_image(format="png")), width=240, height=180))
                             
                         if fig_test_pie:
                             pdf_test_pie = copy.deepcopy(fig_test_pie)
-                            pdf_test_pie.update_layout(title="Daily Test Error Share", font=dict(family="sans-serif", size=10))
-                            pdf_test_pie.update_traces(labels=['Calc', 'Concept', 'Advanced', 'Logic']) # 한글 변수명 우회
-                            img_data_list.append(Image(io.BytesIO(pdf_test_pie.to_image(format="png")), width=245, height=195))
+                            pdf_test_pie.update_layout(title="Daily Test Category Shares", font=dict(family="sans-serif", size=10))
+                            pdf_test_pie.update_traces(labels=['Calc', 'Concept', 'Advanced', 'Logic'])
+                            img_data_list.append(Image(io.BytesIO(pdf_test_pie.to_image(format="png")), width=240, height=180))
                         
                         if img_data_list:
-                            t_charts = Table([img_data_list], colWidths=[265, 265])
+                            t_charts = Table([img_data_list], colWidths=[260, 260])
                             t_charts.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'MIDDLE')]))
                             story.append(t_charts)
                         
-                        story.append(Spacer(1, 10))
+                        # 💡 [핵심 패치] 차트 하단에 한글 뜻을 매핑해주는 미려한 설명 인덱스 박스 장착
+                        guide_box = Table([[Paragraph("<b>💡 [그래프 용어 가이드]</b> &nbsp;&nbsp; <b>Calc :</b> 계산 실수 &nbsp;|&nbsp; <b>Concept :</b> 개념 부족 &nbsp;|&nbsp; <b>Advanced :</b> 고난도 문항 &nbsp;|&nbsp; <b>Logic :</b> 문제 문해력 및 이해 부족", guide_style)]], colWidths=[520])
+                        guide_box.setStyle(TableStyle([
+                            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#EFF6FF')),
+                            ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#BFDBFE')),
+                            ('PADDING', (0,0), (-1,-1), 6),
+                            ('ALIGN', (0,0), (-1,-1), 'CENTER')
+                        ]))
+                        story.append(guide_box)
+                        story.append(Spacer(1, 12))
                         
-                        # 3. 회차별 추이 그래프 시각화 (축과 타이틀 영문화 가공)
-                        story.append(Paragraph("<b>[2] 회차별 숙제 이행률 및 성적 변화 추이</b>", sub_style))
+                        # 3. 회차별 추이 차트 섹션 (빈 공간 제거를 위해 높이 정밀 다이어트 200 -> 165)
+                        story.append(Paragraph("<b>[2] 세션 회차별 성적 및 과제 성실도 변화 추이</b>", sub_style))
+                        
+                        trend_story = []
                         if fig_hw_line:
                             pdf_hw_line = copy.deepcopy(fig_hw_line)
-                            pdf_hw_line.update_layout(title="Homework Completion Rate Trend (%)", xaxis_title="Session (Date)", yaxis_title="Rate (%)", font=dict(family="sans-serif", size=9))
-                            story.append(Image(io.BytesIO(pdf_hw_line.to_image(format="png")), width=510, height=200))
-                        story.append(Spacer(1, 5))
+                            pdf_hw_line.update_layout(title="Homework Completion Rate Trend (%)", xaxis_title="Session", yaxis_title="Rate (%)", font=dict(family="sans-serif", size=8.5), margin=dict(t=30, b=30))
+                            trend_story.append(Image(io.BytesIO(pdf_hw_line.to_image(format="png")), width=520, height=160))
+                            trend_story.append(Spacer(1, 4))
                         
                         if fig_hw_bar:
                             pdf_hw_bar = copy.deepcopy(fig_hw_bar)
-                            pdf_hw_bar.update_layout(title="Homework Error Trend by Category", xaxis_title="Session (Date)", yaxis_title="Count", legend_title="Error Category", font=dict(family="sans-serif", size=9))
-                            # 범례 한글 매핑 우회
+                            pdf_hw_bar.update_layout(title="Homework Error Volume Trend", xaxis_title="Session", yaxis_title="Count", legend_title="Errors", font=dict(family="sans-serif", size=8.5), margin=dict(t=30, b=30))
                             for trace in pdf_hw_bar.data:
-                                if trace.name == '계산실수': trace.name = 'Calc Error'
+                                if trace.name == '계산실수': trace.name = 'Calc'
                                 elif trace.name == '개념부족': trace.name = 'Concept'
                                 elif trace.name == '고난도': trace.name = 'Advanced'
                                 elif trace.name == '문제이해': trace.name = 'Logic'
-                            story.append(Image(io.BytesIO(pdf_hw_bar.to_image(format="png")), width=510, height=200))
-                        story.append(Spacer(1, 5))
-                        
+                            trend_story.append(Image(io.BytesIO(pdf_hw_bar.to_image(format="png")), width=520, height=160))
+                            trend_story.append(Spacer(1, 4))
+                            
                         if fig_test_bar:
                             pdf_test_bar = copy.deepcopy(fig_test_bar)
-                            pdf_test_bar.update_layout(title="Daily Test Error Trend by Category", xaxis_title="Session (Date)", yaxis_title="Count", legend_title="Error Category", font=dict(family="sans-serif", size=9))
+                            pdf_test_bar.update_layout(title="Daily Test Error Volume Trend", xaxis_title="Session", yaxis_title="Count", legend_title="Errors", font=dict(family="sans-serif", size=8.5), margin=dict(t=30, b=30))
                             for trace in pdf_test_bar.data:
-                                if trace.name == '계산실수': trace.name = 'Calc Error'
+                                if trace.name == '계산실수': trace.name = 'Calc'
                                 elif trace.name == '개념부족': trace.name = 'Concept'
                                 elif trace.name == '고난도': trace.name = 'Advanced'
                                 elif trace.name == '문제이해': trace.name = 'Logic'
-                            story.append(Image(io.BytesIO(pdf_test_bar.to_image(format="png")), width=510, height=200))
+                            trend_story.append(Image(io.BytesIO(pdf_test_bar.to_image(format="png")), width=520, height=160))
                         
-                        story.append(Spacer(1, 10))
+                        story.append(KeepTogether(trend_story))
+                        story.append(Spacer(1, 12))
                         
-                        # 4. 데일리 테스트 세부 리포트 표 양식 제작 (리포트랩 표 자체는 나눔고딕으로 완벽히 한글 출력 가능)
+                        # 4. 데일리 테스트 표 디자인 고급화 패치
                         table_story = []
-                        table_story.append(Paragraph("<b>[3] 월간 데일리 테스트 상세 내역</b>", sub_style))
+                        table_story.append(Paragraph("<b>[3] 월간 데일리 테스트 상세 평정 내역</b>", sub_style))
                         
                         if not df_test_table.empty:
                             table_data = [[
                                 Paragraph("<b>시험일자</b>", th_style), 
                                 Paragraph("<b>테스트 명칭</b>", th_style), 
                                 Paragraph("<b>정답률</b>", th_style), 
-                                Paragraph("<b>세부 오답 요인</b>", th_style)
+                                Paragraph("<b>세부 오답 요인 내역 분석</b>", th_style)
                             ]]
                             
                             for _, r in df_test_table.iterrows():
@@ -815,33 +824,52 @@ with tab2:
                                 table_data.append([
                                     Paragraph(r['date'].strftime('%m/%d'), td_style),
                                     Paragraph(r['test_name'], td_left_style),
-                                    Paragraph(f"{r['score_rate']}%", td_style),
+                                    Paragraph(f"<b>{r['score_rate']}%</b>", td_style),
                                     Paragraph(e_txt, td_left_style)
                                 ])
                             
-                            t_report = Table(table_data, colWidths=[55, 150, 55, 250])
+                            # 여백 컴팩트하게 채우기
+                            t_report = Table(table_data, colWidths=[55, 140, 55, 270])
                             t_report.setStyle(TableStyle([
-                                ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#E2E8F0')),
+                                ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1E3A8A')), # 신뢰감을 주는 네이비 헤더
                                 ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
                                 ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-                                ('TOPPADDING', (0,0), (-1,-1), 6),
-                                ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+                                ('TOPPADDING', (0,0), (-1,-1), 5),
+                                ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+                                ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#F8FAFC')]) # 덤벨 줄무늬 스타일로 가독성 확보
                             ]))
                             table_story.append(t_report)
                         else:
                             table_story.append(Paragraph("해당 월에 진행된 정식 테스트 이력이 없습니다.", b_style))
                         
                         story.append(KeepTogether(table_story))
+                        story.append(Spacer(1, 15))
                         
-                        # 5. 종합 글을 깔끔하게 마지막 단독 페이지로 넘김
-                        story.append(PageBreak())
-                        story.append(Paragraph(f"<b>📝 {selected_month} 담당 교사 종합 피드백 코멘트</b>", t_style))
-                        story.append(Spacer(1, 10))
+                        # 5. 종합 피드백 섹션 (페이지 붕 뜸 방지를 위해 박스형 구조로 하단에 타이트하게 통합 배치)
+                        feedback_story = []
+                        feedback_story.append(Paragraph(f"<b>📝 담당 교사 종합 학습 피드백</b>", t_style))
+                        feedback_story.append(Spacer(1, 4))
                         
+                        f_body = []
                         for line in edited_report.split('\n'):
-                            line_clean = line.replace('━━━━━━━━━━━━━━━━━━━━', '--------------------------------------------------')
-                            story.append(Paragraph(line_clean if line_clean.strip() else " ", b_style))
-                            
+                            # 알림톡 기호 제거 및 라인 정돈
+                            if '📊' in line or '📌' in line or '📝' in line or '━━━━━━━━━━━━━━━━━━━━' in line:
+                                continue
+                            if line.strip():
+                                f_body.append(Paragraph(line.strip(), b_style))
+                        
+                        # 피드백 내용 블록화
+                        t_feedback = Table([[f_body]], colWidths=[520])
+                        t_feedback.setStyle(TableStyle([
+                            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F8FAFC')),
+                            ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#E2E8F0')),
+                            ('LINELEFT', (0,0), (-1,-1), 4, colors.HexColor('#1E3A8A')), # 왼쪽에 두꺼운 포인트 라인 배치
+                            ('PADDING', (0,0), (-1,-1), 12)
+                        ]))
+                        feedback_story.append(t_feedback)
+                        
+                        story.append(KeepTogether(feedback_story))
+                        
                         doc.build(story)
                         pdf_bytes = pdf_buffer.getvalue()
                         pdf_buffer.close()
