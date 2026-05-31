@@ -649,14 +649,13 @@ with tab2:
 
 - 수학 교사 올림 -"""
 
-            # 화면에 AI 리포트 예쁘게 보여주기
+           # 화면에 AI 리포트 예쁘게 보여주기
             with st.container(border=True):
                 st.markdown(f"#### 📝 **{selected_month} 학부모 브리핑 초안**")
                 st.text_area("카톡 전송용으로 다듬어진 텍스트입니다. 필요시 수정 후 복사하세요.", value=report_text, height=350, key="ai_report_area")
                 
-                # 원클릭 클립보드 복사 버튼 (모바일/PC 모두 완벽 작동)
-                import streamlit_shadcn_ui as ui  # 만약 이게 없다면 st.button으로 대체 가능
-                if st.button("📋 이 알림톡 양식 통째로 복사하기"):
+                # ✨ 외부 라이브러리 없이 Streamlit 순정 버튼으로 변경 완료!
+                if st.button("📋 이 알림톡 양식 통째로 복사하기", use_container_width=True):
                     st.write('<script>navigator.clipboard.writeText(`' + report_text + '`);</script>', unsafe_allow_html=True)
                     st.success("클립보드에 카톡 양식이 복사되었습니다! 카톡창에 붙여넣기(Ctrl+V) 하세요.")
 
