@@ -768,8 +768,11 @@ with tab2:
                                 fig_cp = copy.deepcopy(fig)
                                 
                                 # 한글 깨짐 방지 영문 레이블 변환 규칙 적용
+                                if 'pie' in str(type(fig_cp)).lower() and fig_cp.data:
+                                    fig_cp.data[0].labels = ['Calc', 'Concept', 'Advanced', 'Logic']
+                                    
+    # 2. update_layout에서 잘못된 'labels' 속성을 제거하고 올바른 속성들만 지정합니다.
                                 fig_cp.update_layout(
-                                    labels=['Calc', 'Concept', 'Advanced', 'Logic'] if 'pie' in str(type(fig_cp)).lower() else None,
                                     xaxis_title="Session" if 'pie' not in str(type(fig_cp)).lower() else None,
                                     yaxis_title=y_label if 'pie' not in str(type(fig_cp)).lower() else None,
                                     legend_title_text=color_label if 'pie' not in str(type(fig_cp)).lower() else None,
