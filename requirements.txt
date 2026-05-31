@@ -2,4 +2,4 @@ st-gsheets-connection
 streamlit
 pandas
 plotly
-
+reportlab
