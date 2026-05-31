@@ -572,7 +572,7 @@ with tab1:
     if col_h2.button("➖ 숙제칸-", key="btn_sub_hw"): 
         st.session_state.h_rows = max(1, st.session_state.h_rows - 1)
         st.rerun()
-# --- TAB 2: 학습 분석 (PDF 완전 방어 패치 버전) ---
+# --- TAB 2: 학습 분석 (시각화 그래프+테스트 리포트 전체 포함 종합 PDF 버전) ---
 with tab2:
     st.markdown("## 📊 월별 상세 학습 통계")
     
@@ -587,13 +587,13 @@ with tab2:
         if not df_filtered.empty:
             df_filtered['x_axis'] = df_filtered['date'].dt.strftime('%m/%d') + " (" + df_filtered['session_num'].astype(int).astype(str) + "회)"
             
-            # 데이터 집계
+            # 1. 데이터 기본 통계 집계
             w_sums = df_filtered[['err_calc', 'err_concept', 'err_hard', 'err_understand']].sum()
             t_w_sums = df_filtered[['test_calc', 'test_concept', 'test_hard', 'test_under']].sum()
             avg_hw = int(df_filtered['hw_result_rate'].mean())
             total_dur = int(df_filtered['duration'].sum())
             
-            # --- 🤖 AI 월간 종합 피드백 리포트 시스템 ---
+            # --- 🤖 AI 월간 종합 피드백 텍스트 생성 ---
             st.markdown("### 🤖 AI 월간 종합 브리핑 룸")
             
             max_hw_err = w_sums.idxmax() if w_sums.sum() > 0 else "none"
@@ -607,7 +607,7 @@ with tab2:
                 hw_comment = "과제를 성실히 수행하려는 노력 성향이 보이나, 특정 회차에서 다소 지연되거나 오답 정리가 미흡한 부분이 발생했습니다. 지속적인 독려가 필요합니다."
                 status_star = "⭐⭐⭐ (보완 및 독려)"
             else:
-                hw_comment = "현재 숙제 이행도가 다소 저조하여 진도 누수 우려가 있습니다. 학원/과외 시간 외에 스스로 복습하는 절대적인 시간 확보를 위해 가정에서도 함께 체크해 주시면 감사하겠습니다."
+                hw_comment = "현재 숙제 이행도가 다소 저조하여 진도 누수 우려가 있습니다. 복습 시간 확보를 위해 가정에서도 함께 체크해 주시면 감사하겠습니다."
                 status_star = "⭐ (집중 관리 필요)"
 
             df_test_table = df_filtered[df_filtered['test_total'] > 0].copy()
@@ -646,82 +646,181 @@ with tab2:
 
 - 수학 교사 올림 -"""
 
-            # 화면에 AI 리포트 출력
+            # 화면에 AI 리포트 출력 및 편집 창
             with st.container(border=True):
-                st.markdown(f"#### 📝 **{selected_month} 학부모 브리핑 초안**")
-                edited_report = st.text_area("카톡 전송용 텍스트 (수정 가능)", value=report_text, height=320, key=f"ai_rep_{s_id}_{selected_month}")
+                st.markdown(f"#### 📝 **{selected_month} 학부모 브리핑 및 종합 PDF 발행**")
+                edited_report = st.text_area("카톡 전송용 텍스트 (수정 가능)", value=report_text, height=220, key=f"ai_rep_{s_id}_{selected_month}")
                 
                 btn_c1, btn_c2 = st.columns(2)
                 with btn_c1:
                     if st.button("📋 이 알림톡 양식 통째로 복사하기", use_container_width=True):
                         st.write('<script>navigator.clipboard.writeText(`' + edited_report + '`);</script>', unsafe_allow_html=True)
                         st.success("클립보드에 복사되었습니다!")
-                
-                with btn_c2:
-                    # --- 📄 [엔진 전면 교체] PDF 리포트 파일 빌드 로직 ---
-                    try:
-                        import io
-                        import urllib.request
-                        from reportlab.lib.pagesizes import letter
-                        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-                        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-                        from reportlab.pdfbase import pdfmetrics
-                        from reportlab.pdfbase.ttfonts import TTFont
-                        
-                        # 폰트 다운로드 함수 안정화 (최상단 배치)
-                        @st.cache_data
-                        def download_nanum_font():
-                            font_url = "https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Regular.ttf"
-                            req = urllib.request.Request(font_url, headers={'User-Agent': 'Mozilla/5.0'})
-                            with urllib.request.urlopen(req) as response:
-                                return response.read()
-                        
-                        # 폰트 등록 검증
-                        try:
-                            pdfmetrics.getFont('NanumGothic')
-                        except KeyError:
-                            font_bytes = download_nanum_font()
-                            pdfmetrics.registerFont(TTFont('NanumGothic', io.BytesIO(font_bytes)))
-                        
-                        # PDF 바이너리 빌드 핵심부
-                        buffer = io.BytesIO()
-                        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=45, leftMargin=45, topMargin=45, bottomMargin=45)
-                        styles = getSampleStyleSheet()
-                        
-                        # 중복 정의 피하기 위해 고유 아이디 사용
-                        title_style = ParagraphStyle('PDFTitleStyle', parent=styles['Heading1'], fontName='NanumGothic', fontSize=16, leading=22, spaceAfter=15)
-                        body_style = ParagraphStyle('PDFBodyStyle', parent=styles['Normal'], fontName='NanumGothic', fontSize=10, leading=16, spaceAfter=6)
-                        
-                        story = []
-                        story.append(Paragraph(f"<b>📊 {selected_month} 종합 학습 분석 리포트</b>", title_style))
-                        story.append(Spacer(1, 10))
-                        
-                        for line in edited_report.split('\n'):
-                            clean_line = line.replace('━━━━━━━━━━━━━━━━━━━━', '--------------------------------------------')
-                            if not clean_line.strip():
-                                story.append(Spacer(1, 5))
-                            else:
-                                story.append(Paragraph(clean_line, body_style))
-                                
-                        doc.build(story)
-                        pdf_data = buffer.getvalue()
-                        buffer.close()
-                        
-                        st.download_button(
-                            label="📄 월간 분석 PDF 다운로드",
-                            data=pdf_data,
-                            file_name=f"{selected_month}_학습분석리포트.pdf",
-                            mime="application/pdf",
-                            use_container_width=True
-                        )
-                    except Exception as pdf_err:
-                        # 디버깅 전용 메시지 노출 패치 (실제 에러 원인 표기)
-                        st.error(f"⚠️ PDF 빌드 실패 원인: {str(pdf_err)}")
 
             st.divider()
 
-            # --- [기존 시각화 요소 유지 코드] ---
-            st.markdown("### 📌 월간 통계 데이터 시각화")
+            # --- 📌 2. 그래프 객체 미리 생성 (화면 출력 및 PDF 저장 공용) ---
+            # 그래프 A: 숙제 오답 파이
+            if w_sums.sum() > 0:
+                fig_hw_pie = px.pie(values=w_sums.values, names=['계산실수', '개념부족', '고난도', '문제이해'], hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+                fig_hw_pie.update_layout(margin=dict(t=20, b=20, l=10, r=10), width=350, height=300)
+            else: fig_hw_pie = None
+
+            # 그래프 B: 테스트 오답 파이
+            if t_w_sums.sum() > 0:
+                fig_test_pie = px.pie(values=t_w_sums.values, names=['계산실수', '개념부족', '고난도', '문제이해'], hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe)
+                fig_test_pie.update_layout(margin=dict(t=20, b=20, l=10, r=10), width=350, height=300)
+            else: fig_test_pie = None
+
+            # 그래프 C: 회차별 숙제 이행률 라인
+            fig_hw_line = px.line(df_filtered, x='x_axis', y='hw_result_rate', markers=True, text='hw_result_rate', title="📊 회차별 숙제 이행률 추이(%)")
+            fig_hw_line.update_layout(xaxis_type='category', yaxis_range=[-5, 115], width=700, height=320)
+            fig_hw_line.update_traces(textposition="top center")
+
+            # 그래프 D: 숙제 오답 누적 막대
+            if w_sums.sum() > 0:
+                df_hw_bar = df_filtered.melt(id_vars=['x_axis'], value_vars=['err_calc', 'err_concept', 'err_hard', 'err_understand'], var_name='오답원인', value_name='개수')
+                df_hw_bar['오답원인'] = df_hw_bar['오답원인'].map({'err_calc': '계산실수', 'err_concept': '개념부족', 'err_hard': '고난도', 'err_understand': '문제이해'})
+                fig_hw_bar = px.bar(df_hw_bar, x='x_axis', y='개수', color='오답원인', title="📖 회차별 숙제 오답 원인 추이", color_discrete_sequence=px.colors.qualitative.Pastel)
+                fig_hw_bar.update_layout(xaxis_type='category', width=700, height=320)
+            else: fig_hw_bar = None
+
+            # 그래프 E: 테스트 오답 누적 막대
+            if t_w_sums.sum() > 0:
+                df_test_bar = df_filtered.melt(id_vars=['x_axis'], value_vars=['test_calc', 'test_concept', 'test_hard', 'test_under'], var_name='오답원인', value_name='개수')
+                df_test_bar['오답원인'] = df_test_bar['오답원인'].map({'test_calc': '계산실수', 'test_concept': '개념부족', 'test_hard': '고난도', 'test_under': '문제이해'})
+                fig_test_bar = px.bar(df_test_bar, x='x_axis', y='개수', color='오답원인', title="📝 회차별 테스트 오답 원인 추이", color_discrete_sequence=px.colors.qualitative.Safe)
+                fig_test_bar.update_layout(xaxis_type='category', width=700, height=320)
+            else: fig_test_bar = None
+
+
+            # --- 📄 [핵심 엔진] 종합 시각화 PDF 생성 처리단 ---
+            with btn_c2:
+                try:
+                    import io
+                    import urllib.request
+                    from reportlab.lib.pagesizes import letter
+                    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
+                    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+                    from reportlab.pdfbase import pdfmetrics
+                    from reportlab.pdfbase.ttfonts import TTFont
+                    from reportlab.lib import colors
+
+                    @st.cache_data
+                    def download_pdf_font():
+                        url = "https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Regular.ttf"
+                        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                        with urllib.request.urlopen(req) as res: return res.read()
+
+                    try: pdfmetrics.getFont('NanumGothic')
+                    except KeyError: pdfmetrics.registerFont(TTFont('NanumGothic', io.BytesIO(download_pdf_font())))
+
+                    # 🛠️ [클라이맥스] PDF 내부에 차트 이미지를 실시간 렌더링하는 함수
+                    def build_full_report_pdf():
+                        pdf_buffer = io.BytesIO()
+                        doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
+                        styles = getSampleStyleSheet()
+                        
+                        t_style = ParagraphStyle('T1', parent=styles['Heading1'], fontName='NanumGothic', fontSize=18, leading=24, spaceAfter=12, textColor=colors.HexColor('#1E3A8A'))
+                        sub_style = ParagraphStyle('T2', parent=styles['Heading2'], fontName='NanumGothic', fontSize=13, leading=18, spaceBefore=12, spaceAfter=8, textColor=colors.HexColor('#0369A1'))
+                        b_style = ParagraphStyle('B1', parent=styles['Normal'], fontName='NanumGothic', fontSize=9.5, leading=15, spaceAfter=4)
+                        
+                        story = []
+                        story.append(Paragraph(f"<b>📊 {selected_month} 종합 학습 분석 최종 보고서</b>", t_style))
+                        story.append(Spacer(1, 10))
+                        
+                        # Part 1. 교사 총평 및 분석 텍스트 각인
+                        story.append(Paragraph("<b>[1] 담당 교사 종합 피드백</b>", sub_style))
+                        for line in edited_report.split('\n'):
+                            line_clean = line.replace('━━━━━━━━━━━━━━━━━━━━', '--------------------------------------------------')
+                            story.append(Paragraph(line_clean if line_clean.strip() else " ", b_style))
+                        
+                        story.append(Spacer(1, 15))
+                        story.append(Paragraph("<b>[2] 핵심 오답 원인 분석 (전체 분포)</b>", sub_style))
+                        
+                        # 📸 Plotly 차트를 정적 이미지로 스냅샷 변환하여 PDF 스토리에 가둠
+                        img_data_list = []
+                        if fig_hw_pie:
+                            img_data_list.append(Image(io.BytesIO(fig_hw_pie.to_image(format="png")), width=240, height=200))
+                        if fig_test_pie:
+                            img_data_list.append(Image(io.BytesIO(fig_test_pie.to_image(format="png")), width=240, height=200))
+                        
+                        if img_data_list:
+                            # 좌우 배치를 위해 테이블 서식 활용
+                            t_charts = Table([img_data_list], colWidths=[260, 260])
+                            t_charts.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'MIDDLE')]))
+                            story.append(t_charts)
+                        
+                        story.append(Spacer(1, 15))
+                        story.append(Paragraph("<b>[3] 회차별 숙제 이행률 및 성적 변화 추이</b>", sub_style))
+                        
+                        if fig_hw_line:
+                            story.append(Image(io.BytesIO(fig_hw_line.to_image(format="png")), width=500, height=210))
+                        story.append(Spacer(1, 10))
+                        
+                        if fig_hw_bar:
+                            story.append(Image(io.BytesIO(fig_hw_bar.to_image(format="png")), width=500, height=210))
+                        story.append(Spacer(1, 10))
+                        
+                        if fig_test_bar:
+                            story.append(Image(io.BytesIO(fig_test_bar.to_image(format="png")), width=500, height=210))
+                        
+                        # Part 4. 데일리 테스트 세부 리포트 표 양식 제작
+                        story.append(Spacer(1, 15))
+                        story.append(Paragraph("<b>[4] 월간 데일리 테스트 상세 내역</b>", sub_style))
+                        
+                        if not df_test_table.empty:
+                            table_data = [["시험일자", "테스트 명칭", "정답률", "세부 오답 요인"]]
+                            for _, r in df_test_table.iterrows():
+                                e_parts = []
+                                if r['test_calc'] > 0: e_parts.append(f"계산({int(r['test_calc'])})")
+                                if r['test_concept'] > 0: e_parts.append(f"개념({int(r['test_concept'])})")
+                                if r['test_hard'] > 0: e_parts.append(f"고난도({int(r['test_hard'])})")
+                                if r['test_under'] > 0: e_parts.append(f"이해({int(r['test_under'])})")
+                                e_txt = ", ".join(e_parts) if e_parts else "만점! 💯"
+                                
+                                table_data.append([
+                                    r['date'].strftime('%m/%d'),
+                                    r['test_name'],
+                                    f"{r['score_rate']}%",
+                                    e_txt
+                                ])
+                            
+                            t_report = Table(table_data, colWidths=[55, 150, 55, 240])
+                            t_report.setStyle(TableStyle([
+                                ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#E2E8F0')),
+                                ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor('#1E293B')),
+                                ('FONTNAME', (0,0), (-1,-1), 'NanumGothic'),
+                                ('FONTSIZE', (0,0), (-1,-1), 9),
+                                ('ALIGN', (0,0), (0,-1), 'CENTER'),
+                                ('ALIGN', (2,0), (2,-1), 'CENTER'),
+                                ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
+                                ('TOPPADDING', (0,0), (-1,-1), 6),
+                                ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+                            ]))
+                            story.append(t_report)
+                        else:
+                            story.append(Paragraph("해당 월에 진행된 정식 테스트 이력이 없습니다.", b_style))
+                            
+                        doc.build(story)
+                        pdf_bytes = pdf_buffer.getvalue()
+                        pdf_buffer.close()
+                        return pdf_bytes
+
+                    # 다운로드 버튼 매핑
+                    st.download_button(
+                        label="📄 모든 시각화 차트 포함 PDF 다운로드",
+                        data=build_full_report_pdf(),
+                        file_name=f"{selected_month}_종합_학습분석_리포트.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                except Exception as ex:
+                    st.error(f"⚠️ 종합 PDF 생성 대기 중... (원인: {str(ex)})")
+
+
+            # --- 📌 3. 화면 UI 시각화 렌더링 영역 (기존 화면 요소 유지) ---
+            st.markdown("### 📌 월간 통계 데이터 시각화 (화면 브리핑용)")
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("📈 월평균 이행률", f"{avg_hw}%")
             m2.metric("⏱️ 총 수업시간", f"{total_dur}분")
@@ -731,18 +830,12 @@ with tab2:
             an_col1, an_col2 = st.columns(2)
             with an_col1:
                 st.write("**[📖 월간 숙제 오답 분포]**")
-                if w_sums.sum() > 0:
-                    fig_hw_pie = px.pie(values=w_sums.values, names=['계산실수', '개념부족', '고난도', '문제이해'], hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
-                    fig_hw_pie.update_layout(margin=dict(t=20, b=20, l=10, r=10))
-                    st.plotly_chart(fig_hw_pie, use_container_width=True)
+                if fig_hw_pie: st.plotly_chart(fig_hw_pie, use_container_width=True)
                 else: st.caption("💡 숙제 오답 데이터가 없습니다.")
             
             with an_col2:
                 st.write("**[📝 월간 테스트 오답 분포]**")
-                if t_w_sums.sum() > 0:
-                    fig_test_pie = px.pie(values=t_w_sums.values, names=['계산실수', '개념부족', '고난도', '문제이해'], hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe)
-                    fig_test_pie.update_layout(margin=dict(t=20, b=20, l=10, r=10))
-                    st.plotly_chart(fig_test_pie, use_container_width=True)
+                if fig_test_pie: st.plotly_chart(fig_test_pie, use_container_width=True)
                 else: st.caption("💡 테스트 오답 데이터가 없습니다.")
 
             st.divider()
@@ -751,27 +844,12 @@ with tab2:
             chart_tab1, chart_tab2, chart_tab3 = st.tabs(["✍️ 숙제 이행률", "📖 숙제 오답 추이", "📝 테스트 오답 추이"])
             
             with chart_tab1:
-                fig_hw_line = px.line(df_filtered, x='x_axis', y='hw_result_rate', markers=True, text='hw_result_rate', title="📊 회차별 숙제 이행률 추이(%)")
-                fig_hw_line.update_layout(xaxis_type='category', yaxis_range=[-5, 115])
-                fig_hw_line.update_traces(textposition="top center")
                 st.plotly_chart(fig_hw_line, use_container_width=True)
-                
             with chart_tab2:
-                if w_sums.sum() > 0:
-                    df_hw_bar = df_filtered.melt(id_vars=['x_axis'], value_vars=['err_calc', 'err_concept', 'err_hard', 'err_understand'], var_name='오답원인', value_name='개수')
-                    df_hw_bar['오답원인'] = df_hw_bar['오답원인'].map({'err_calc': '계산실수', 'err_concept': '개념부족', 'err_hard': '고난도', 'err_understand': '문제이해'})
-                    fig_hw_bar = px.bar(df_hw_bar, x='x_axis', y='개수', color='오답원인', title="📖 회차별 숙제 오답 원인 추이 (누적)", color_discrete_sequence=px.colors.qualitative.Pastel)
-                    fig_hw_bar.update_layout(xaxis_type='category')
-                    st.plotly_chart(fig_hw_bar, use_container_width=True)
+                if fig_hw_bar: st.plotly_chart(fig_hw_bar, use_container_width=True)
                 else: st.caption("💡 숙제 오답 추이 데이터가 없습니다.")
-                    
             with chart_tab3:
-                if t_w_sums.sum() > 0:
-                    df_test_bar = df_filtered.melt(id_vars=['x_axis'], value_vars=['test_calc', 'test_concept', 'test_hard', 'test_under'], var_name='오답원인', value_name='개수')
-                    df_test_bar['오답원인'] = df_test_bar['오답원인'].map({'test_calc': '계산실수', 'test_concept': '개념부족', 'test_hard': '고난도', 'test_under': '문제이해'})
-                    fig_test_bar = px.bar(df_test_bar, x='x_axis', y='개수', color='오답원인', title="📝 회차별 테스트 오답 원인 추이 (누적)", color_discrete_sequence=px.colors.qualitative.Safe)
-                    fig_test_bar.update_layout(xaxis_type='category')
-                    st.plotly_chart(fig_test_bar, use_container_width=True)
+                if fig_test_bar: st.plotly_chart(fig_test_bar, use_container_width=True)
                 else: st.caption("💡 테스트 오답 추이 데이터가 없습니다.")
 
             st.divider()
@@ -785,9 +863,7 @@ with tab2:
                     t_total = int(row['test_total'])
                     t_rate = row['score_rate']
                     
-                    if t_rate >= 90: status_emoji = "🟢 [최우수]"
-                    elif t_rate >= 70: status_emoji = "🔵 [양호]"
-                    else: status_emoji = "🟡 [보완필요]"
+                    status_emoji = "🟢 [최우수]" if t_rate >= 90 else "🔵 [양호]" if t_rate >= 70 else "🟡 [보완필요]"
                     
                     with st.expander(f"{status_emoji} {t_date} | **{t_name}** 👉 정답률 {t_rate}%", expanded=True):
                         tc_1, tc_2, tc_3 = st.columns([1, 1, 2])
