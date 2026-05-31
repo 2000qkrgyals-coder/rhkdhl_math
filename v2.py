@@ -922,7 +922,49 @@ with tab2:
                                 ]))
                                 table_story.append(t_report)
                             else:
-                                table_story.append(Paragraph("해당 월에 진행
+                                table_story.append(Paragraph("해당 월에 진행된 정식 테스트 이력이 없습니다.", b_style))
+                            
+                            story.append(KeepTogether(table_story))
+                            story.append(Spacer(1, 14))
+                            
+                            # 7. 종합 피드백 섹션 박스 조판
+                            feedback_story = []
+                            feedback_story.append(Paragraph(f"<b>📝 담당 교사 월간 종합 피드백</b>", t_style))
+                            feedback_story.append(Spacer(1, 6))
+                            
+                            f_body = []
+                            for line in edited_report.split('\n'):
+                                if '📊' in line or '📌' in line or '📝' in line or '━━━━━━━━━━━━━━━━━━━━' in line:
+                                    continue
+                                if line.strip():
+                                    f_body.append(Paragraph(line.strip(), b_style))
+                            
+                            t_feedback = Table([[f_body]], colWidths=[540])
+                            t_feedback.setStyle(TableStyle([
+                                ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F8FAFC')),
+                                ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#E2E8F0')),
+                                ('LINELEFT', (0,0), (-1,-1), 4, colors.HexColor('#1E3A8A')),
+                                ('PADDING', (0,0), (-1,-1), 12)
+                            ]))
+                            feedback_story.append(t_feedback)
+                            
+                            story.append(KeepTogether(feedback_story))
+                            
+                            doc.build(story)
+                            pdf_bytes = pdf_buffer.getvalue()
+                            pdf_buffer.close()
+                            return pdf_bytes
+
+                        # 다운로드 버튼 매핑
+                        st.download_button(
+                            label="📄 완벽 조판 종합 학습분석 PDF 다운로드",
+                            data=build_full_report_pdf(),
+                            file_name=f"{selected_month}_종합_학습분석_리포트.pdf",
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+                    except Exception as ex:
+                        st.error(f"⚠️ 종합 PDF 최적화 생성 대기 중... (원인: {str(ex)})")
 
 
             # --- 📌 3. 화면 UI 시각화 렌더링 영역 ---
