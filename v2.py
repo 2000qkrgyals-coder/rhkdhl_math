@@ -540,23 +540,42 @@ with tab1:
 
         fback = st.text_area("피드백", value=st.session_state.get('edit_feedback', ""), key=f"fb_text{edit_suffix}")
         
-        if st.form_submit_button("💾 저장하기"):
+       if st.form_submit_button("💾 저장하기"):
+    # 🚨 [안전 패치 1] start_t, end_t, date_in 변수가 실존하고, 비어있지(None) 않은지 먼저 검사
+    if 'start_t' in locals() and 'end_t' in locals() and start_t and end_t and date_in:
+        try:
+            # 안전하게 분 단위 차이 계산
             dur = (datetime.combine(date_in, end_t) - datetime.combine(date_in, start_t)).seconds // 60
-            new_id = int(st.session_state.edit_id) if is_edit_mode else (int(df_se['id'].max()+1) if not df_se.empty else 1)
-            new_row = {
-                'id': new_id, 'student_id': s_id, 'date': str(date_in), 'session_num': int(sess_num),
-                'start_time': start_t.strftime("%H:%M"), 'end_time': end_t.strftime("%H:%M"), 'duration': int(dur),
-                'hw_detail': " | ".join(check_list), 'progress': " | ".join(p_list),
-                'hw_result_rate': int(final_rate), 'next_hw': " | ".join(h_list), 'feedback': fback,
-                'wrong_total': w_total, 'err_calc': w_calc, 'err_concept': w_concept, 'err_hard': w_hard, 'err_understand': w_under,
-                'test_name': t_name, 'test_total': t_total, 'test_score': t_score,
-                'test_calc': t_calc, 'test_concept': t_concept, 'test_hard': t_hard, 'test_under': t_under
-            }
-            if is_edit_mode: df_se = df_se[df_se['id'] != st.session_state.edit_id]
-            save_data(pd.concat([df_se, pd.DataFrame([new_row])], ignore_index=True), "sessions")
-            st.success("저장되었습니다!")
-            time.sleep(1)
-            full_reset()
+            if dur > 720: # 종료 시간이 시작 시간보다 앞서는 등 이상 수치 방지
+                dur = 0
+        except Exception:
+            dur = 0
+    else:
+        # 변수가 없거나 비어있다면 기본값 0으로 강제 세팅하여 NameError 원천 차단
+        dur = 0
+
+    # 2. 기존 ID 부여 및 딕셔너리 조립 로직 (안전 가드 유지)
+    new_id = int(st.session_state.edit_id) if is_edit_mode else (int(df_se['id'].max()+1) if not df_se.empty else 1)
+    
+    new_row = {
+        'id': new_id, 'student_id': s_id, 'date': str(date_in), 'session_num': int(sess_num),
+        'start_time': start_t.strftime("%H:%M") if start_t else "00:00", 
+        'end_time': end_t.strftime("%H:%M") if end_t else "00:00", 
+        'duration': int(dur),
+        'hw_detail': " | ".join(check_list), 'progress': " | ".join(p_list),
+        'hw_result_rate': int(final_rate), 'next_hw': " | ".join(h_list), 'feedback': fback,
+        'wrong_total': w_total, 'err_calc': w_calc, 'err_concept': w_concept, 'err_hard': w_hard, 'err_understand': w_under,
+        'test_name': t_name, 'test_total': t_total, 'test_score': t_score,
+        'test_calc': t_calc, 'test_concept': t_concept, 'test_hard': t_hard, 'test_under': t_under
+    }
+    
+    if is_edit_mode: 
+        df_se = df_se[df_se['id'] != st.session_state.edit_id]
+        
+    save_data(pd.concat([df_se, pd.DataFrame([new_row])], ignore_index=True), "sessions")
+    st.success("저장되었습니다!")
+    time.sleep(1)
+    full_reset()
 
     # 동적 행 제어 버튼 
     col_p1, col_p2, col_h1, col_h2 = st.columns(4)
