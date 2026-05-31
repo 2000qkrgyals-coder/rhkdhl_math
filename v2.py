@@ -719,7 +719,7 @@ with tab2:
             else: fig_test_bar = None
 
 
-           with btn_c2:
+            with btn_c2:
                     try:
                         import io
                         import urllib.request
