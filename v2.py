@@ -720,7 +720,7 @@ with tab2:
 
 
             def build_full_report_pdf():
-                            pdf_buffer = io.BytesIO()
+                 pdf_buffer = io.BytesIO()
                             # 3개 페이지의 균등 배분을 위해 상하좌우 여백을 시원하게 정렬 (0.5인치)
                             doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
                             styles = getSampleStyleSheet()
