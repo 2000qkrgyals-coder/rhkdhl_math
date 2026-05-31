@@ -756,58 +756,147 @@ with tab2:
                         story = []
                         
                         # --- PAGE 1: 숙제 관련 그래프 ---
-                        p1_blocks = []
-                        p1_blocks.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서 (1/3)</b>", t_style))
+                        story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서 (1/3)</b>", t_style))
                         
                         guide_box = Table([[Paragraph("<b>💡 [그래프 용어 가이드]</b> &nbsp;&nbsp; <b>Calc :</b> 계산 실수 &nbsp;|&nbsp; <b>Concept :</b> 개념 부족 &nbsp;|&nbsp; <b>Advanced :</b> 고난도 문항 &nbsp;|&nbsp; <b>Logic :</b> 문제 문해력 및 이해 부족", guide_style)]], colWidths=[520])
-                        guide_box.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#EFF6FF')), ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#BFDBFE')), ('PADDING', (0,0), (-1,-1), 6), ('ALIGN', (0,0), (-1,-1), 'CENTER')]))
-                        p1_blocks.append(guide_box)
-                        p1_blocks.append(Spacer(1, 10))
+                        guide_box.setStyle(TableStyle([
+                            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#EFF6FF')),
+                            ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#BFDBFE')),
+                            ('PADDING', (0,0), (-1,-1), 6),
+                            ('ALIGN', (0,0), (-1,-1), 'CENTER')
+                        ]))
+                        story.append(guide_box)
+                        story.append(Spacer(1,3))
                         
-                        # 1. 숙제 이행률
+                        upper_block = []
+                        lower_block = []
+                        
                         if fig_hw_line:
                             pdf_hw_line = copy.deepcopy(fig_hw_line)
-                            pdf_hw_line.update_layout(title="Homework Completion Rate Trend (%)", xaxis_title="Session", yaxis_title="Rate (%)", font=dict(family="sans-serif", size=8), margin=dict(t=25, b=25))
-                            p1_blocks.append(Paragraph("<b>[1] 회차별 숙제 이행률 추이 그래프</b>", sub_style))
-                            p1_blocks.append(Image(io.BytesIO(pdf_hw_line.to_image(format="png")), width=480, height=200))
+                            pdf_hw_line.update_layout(
+                                title="Homework Completion Rate Trend (%)",
+                                xaxis_title="Session",
+                                yaxis_title="Rate (%)",
+                                font=dict(family="sans-serif", size=8),
+                                margin=dict(t=25, b=25)
+                            )
                         
-                        # 2. 숙제 오답 분석
+                            upper_block.extend([
+                                Paragraph("<b>[1] 회차별 숙제 이행률 추이 그래프</b>", sub_style),
+                                Image(io.BytesIO(pdf_hw_line.to_image(format="png")), width=500, height=220)
+                            ])
+                        
                         if fig_hw_bar:
                             pdf_hw_bar = copy.deepcopy(fig_hw_bar)
-                            pdf_hw_bar.update_layout(title="Homework Error Volume Trend", xaxis_title="Session", yaxis_title="Count", legend_title="Errors", font=dict(family="sans-serif", size=8), margin=dict(t=25, b=25))
-                            for trace in pdf_hw_bar.data:
-                                mapping = {'계산실수': 'Calc', '개념부족': 'Concept', '고난도': 'Advanced', '문제이해': 'Logic'}
-                                trace.name = mapping.get(trace.name, trace.name)
-                            p1_blocks.append(Paragraph("<b>[2] 숙제 회차별 오답 원인 분석 그래프</b>", sub_style))
-                            p1_blocks.append(Image(io.BytesIO(pdf_hw_bar.to_image(format="png")), width=480, height=200))
+                            pdf_hw_bar.update_layout(
+                                title="Homework Error Volume Trend",
+                                xaxis_title="Session",
+                                yaxis_title="Count",
+                                legend_title="Errors",
+                                font=dict(family="sans-serif", size=8),
+                                margin=dict(t=25, b=25)
+                            )
                         
-                        story.append(KeepTogether(p1_blocks))
+                            for trace in pdf_hw_bar.data:
+                                mapping = {
+                                    '계산실수':'Calc',
+                                    '개념부족':'Concept',
+                                    '고난도':'Advanced',
+                                    '문제이해':'Logic'
+                                }
+                                trace.name = mapping.get(trace.name, trace.name)
+                        
+                            lower_block.extend([
+                                Paragraph("<b>[2] 숙제 회차별 오답 원인 분석 그래프</b>", sub_style),
+                                Image(io.BytesIO(pdf_hw_bar.to_image(format="png")), width=500, height=220)
+                            ])
+                        
+                        page1_table = Table(
+                            [
+                                [upper_block],
+                                [lower_block]
+                            ],
+                            colWidths=[520],
+                            rowHeights=[270,270]
+                        )
+                        
+                        page1_table.setStyle(TableStyle([
+                            ('VALIGN',(0,0),(-1,-1),'TOP'),
+                            ('LEFTPADDING',(0,0),(-1,-1),0),
+                            ('RIGHTPADDING',(0,0),(-1,-1),0),
+                            ('TOPPADDING',(0,0),(-1,-1),0),
+                            ('BOTTOMPADDING',(0,0),(-1,-1),0),
+                        ]))
+                        
+                        story.append(page1_table)
                         story.append(PageBreak())
                         
                         # --- PAGE 2: 테스트 관련 그래프 ---
-                        p2_blocks = []
-                        p2_blocks.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서 (2/3)</b>", t_style))
+                        story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서 (2/3)</b>", t_style))
                         
-                        # 3. 테스트 결과
+                        upper_block = []
+                        lower_block = []
+                        
                         if fig_test_line:
                             pdf_test_line = copy.deepcopy(fig_test_line)
-                            pdf_test_line.update_layout(title="Daily Test Score Rate Trend (%)", xaxis_title="Session", yaxis_title="Rate (%)", font=dict(family="sans-serif", size=8), margin=dict(t=25, b=25))
-                            p2_blocks.append(Paragraph("<b>[3] 회차별 데일리 테스트 결과 그래프</b>", sub_style))
-                            p2_blocks.append(Image(io.BytesIO(pdf_test_line.to_image(format="png")), width=480, height=200))
-                            
-                        # 4. 테스트 오답 분석
+                            pdf_test_line.update_layout(
+                                title="Daily Test Score Rate Trend (%)",
+                                xaxis_title="Session",
+                                yaxis_title="Rate (%)",
+                                font=dict(family="sans-serif", size=8),
+                                margin=dict(t=25, b=25)
+                            )
+                        
+                            upper_block.extend([
+                                Paragraph("<b>[3] 회차별 데일리 테스트 결과 그래프</b>", sub_style),
+                                Image(io.BytesIO(pdf_test_line.to_image(format="png")), width=500, height=220)
+                            ])
+                        
                         if fig_test_bar:
                             pdf_test_bar = copy.deepcopy(fig_test_bar)
-                            pdf_test_bar.update_layout(title="Daily Test Error Volume Trend", xaxis_title="Session", yaxis_title="Count", legend_title="Errors", font=dict(family="sans-serif", size=8), margin=dict(t=25, b=25))
-                            for trace in pdf_test_bar.data:
-                                mapping = {'계산실수': 'Calc', '개념부족': 'Concept', '고난도': 'Advanced', '문제이해': 'Logic'}
-                                trace.name = mapping.get(trace.name, trace.name)
-                            p2_blocks.append(Paragraph("<b>[4] 데일리 테스트 오답 회차별 통계 그래프</b>", sub_style))
-                            p2_blocks.append(Image(io.BytesIO(pdf_test_bar.to_image(format="png")), width=480, height=200))
-                            
-                        story.append(KeepTogether(p2_blocks))
-                        story.append(PageBreak())
+                            pdf_test_bar.update_layout(
+                                title="Daily Test Error Volume Trend",
+                                xaxis_title="Session",
+                                yaxis_title="Count",
+                                legend_title="Errors",
+                                font=dict(family="sans-serif", size=8),
+                                margin=dict(t=25, b=25)
+                            )
                         
+                            for trace in pdf_test_bar.data:
+                                mapping = {
+                                    '계산실수':'Calc',
+                                    '개념부족':'Concept',
+                                    '고난도':'Advanced',
+                                    '문제이해':'Logic'
+                                }
+                                trace.name = mapping.get(trace.name, trace.name)
+                        
+                            lower_block.extend([
+                                Paragraph("<b>[4] 데일리 테스트 오답 회차별 통계 그래프</b>", sub_style),
+                                Image(io.BytesIO(pdf_test_bar.to_image(format="png")), width=500, height=220)
+                            ])
+                        
+                        page2_table = Table(
+                            [
+                                [upper_block],
+                                [lower_block]
+                            ],
+                            colWidths=[520],
+                            rowHeights=[270,270]
+                        )
+                        
+                        page2_table.setStyle(TableStyle([
+                            ('VALIGN',(0,0),(-1,-1),'TOP'),
+                            ('LEFTPADDING',(0,0),(-1,-1),0),
+                            ('RIGHTPADDING',(0,0),(-1,-1),0),
+                            ('TOPPADDING',(0,0),(-1,-1),0),
+                            ('BOTTOMPADDING',(0,0),(-1,-1),0),
+                        ]))
+                        
+                        story.append(page2_table)
+                        story.append(PageBreak())
+                                                
                         # --- PAGE 3: 종합 피드백 ---
                         p3_blocks = []
                         p3_blocks.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서 (3/3)</b>", t_style))
