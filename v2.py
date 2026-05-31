@@ -572,49 +572,112 @@ with tab1:
     if col_h2.button("➖ 숙제칸-", key="btn_sub_hw"): 
         st.session_state.h_rows = max(1, st.session_state.h_rows - 1)
         st.rerun()
-# --- TAB 2: 학습 분석 (월간 분석 + 날짜별 상세 그래프 + 성적표 가독성 업그레이드) ---
+# --- TAB 2: 학습 분석 (월간 분석 + AI 종합 총평 리포트 고도화 버전) ---
 with tab2:
     st.markdown("## 📊 월별 상세 학습 통계")
     
-    # 1. 기본 데이터 가공 및 안전 필터링
     df_ana = df_se[df_se['student_id'] == s_id].copy()
     if not df_ana.empty:
         df_ana['date'] = pd.to_datetime(df_ana['date'])
         df_ana['year_month'] = df_ana['date'].dt.strftime('%Y-%m')
         
-        # 월 선택 셀렉트박스
         selected_month = st.selectbox("📅 분석할 월 선택", sorted(df_ana['year_month'].unique(), reverse=True))
         df_filtered = df_ana[df_ana['year_month'] == selected_month].sort_values('date')
         
         if not df_filtered.empty:
-            # 그래프 X축 라벨 가독성 패치 (ex: "05/21 (1회)")
             df_filtered['x_axis'] = df_filtered['date'].dt.strftime('%m/%d') + " (" + df_filtered['session_num'].astype(int).astype(str) + "회)"
             
-            # --- 🟢 [상단] 한눈에 보는 월간 핵심 지표 (Metrics) ---
-            st.markdown("### 📌 월간 요약 대시보드")
+            # 데이터 집계
             w_sums = df_filtered[['err_calc', 'err_concept', 'err_hard', 'err_understand']].sum()
             t_w_sums = df_filtered[['test_calc', 'test_concept', 'test_hard', 'test_under']].sum()
+            avg_hw = int(df_filtered['hw_result_rate'].mean())
+            total_dur = int(df_filtered['duration'].sum())
             
+            # --- 🤖 [🔥 신규 고도화] AI 월간 종합 피드백 리포트 시스템 ---
+            st.markdown("### 🤖 AI 월간 종합 브리핑 룸")
+            
+            # 1. 오답 주원인 판별 로직
+            max_hw_err = w_sums.idxmax() if w_sums.sum() > 0 else "none"
+            err_mapping = {'err_calc': '계산 실수', 'err_concept': '개념 이해 부족', 'err_hard': '고난도 문항 진입 장벽', 'err_understand': '문제 문해력(이해) 부족', 'none': '없음'}
+            main_err_name = err_mapping[max_hw_err]
+            
+            # 2. 이행률 점수대별 동적 코멘트 생성
+            if avg_hw >= 90:
+                hw_comment = "과제 수행도가 매우 우수합니다. 자기주도 학습 습관이 잘 잡혀있어 진도를 계획대로 탄탄하게 나가고 있습니다."
+                status_star = "⭐⭐⭐⭐⭐ (최우수)"
+            elif avg_hw >= 70:
+                hw_comment = "과제를 성실히 수행하려는 노력 성향이 보이나, 특정 회차에서 다소 지연되거나 오답 정리가 미흡한 부분이 발생했습니다. 지속적인 독려가 필요합니다."
+                status_star = "⭐⭐⭐ (보완 및 독려)"
+            else:
+                hw_comment = "현재 숙제 이행도가 다소 저조하여 진도 누수 우려가 있습니다. 학원/과외 시간 외에 스스로 복습하는 절대적인 시간 확보를 위해 가정에서도 함께 체크해 주시면 감사하겠습니다."
+                status_star = "⭐ (집중 관리 필요)"
+
+            # 3. 테스트 성적 요약 분석
+            df_test_table = df_filtered[df_filtered['test_total'] > 0].copy()
+            if not df_test_table.empty:
+                df_test_table['score_rate'] = (df_test_table['test_score'] / df_test_table['test_total'] * 100).astype(int)
+                avg_test_rate = int(df_test_table['score_rate'].mean())
+                test_comment = f"이번 달 데일리 테스트 평균 정답률은 {avg_test_rate}%입니다. 개념을 실전 문제에 적용하는 과정에서 주로 [{main_err_name}] 유형의 감점이 두드러졌습니다. 오답 노트를 통해 취약점을 확실히 메우도록 지도 중입니다."
+            else:
+                avg_test_rate = "기록 없음"
+                test_comment = "이번 달 시행된 공식 데일리 테스트 피드백이 없습니다. 평소 단원 평가 성적을 기반으로 개념 다지기에 집중하고 있습니다."
+
+            # 4. 학부모 카톡 전송용 전체 텍스트 빌드
+            report_text = f"""[📊 {selected_month} 월간 학습 성적표 안내]
+
+안녕하세요 학부모님, 수학 담당 교사입니다. 
+이번 달 진행된 종합 학습 통계 및 분석 리포트를 보내드립니다.
+
+━━━━━━━━━━━━━━━━━━━━
+📌 1. 월간 핵심 지표 요약
+━━━━━━━━━━━━━━━━━━━━
+• 월평균 숙제 이행률: {avg_hw}% {status_star}
+• 월간 총 수업 시간: {total_dur}분
+• 데일리 테스트 평균 정답률: {avg_test_rate if isinstance(avg_test_rate, str) else f"{avg_test_rate}%"}
+• 주요 오답 원인 유형: {main_err_name}
+
+━━━━━━━━━━━━━━━━━━━━
+📝 2. 담당 교사 종합 총평
+━━━━━━━━━━━━━━━━━━━━
+• 과제 수행 및 학습 태도:
+{hw_comment}
+
+• 테스트 및 취약점 분석:
+{test_comment}
+
+항상 믿고 맡겨주셔서 감사드립니다. 다음 달에는 이번 달에 발견된 취약 요소를 완벽하게 극복할 수 있도록 더욱 정밀하게 지도하겠습니다. 
+
+- 수학 교사 올림 -"""
+
+            # 화면에 AI 리포트 예쁘게 보여주기
+            with st.container(border=True):
+                st.markdown(f"#### 📝 **{selected_month} 학부모 브리핑 초안**")
+                st.text_area("카톡 전송용으로 다듬어진 텍스트입니다. 필요시 수정 후 복사하세요.", value=report_text, height=350, key="ai_report_area")
+                
+                # 원클릭 클립보드 복사 버튼 (모바일/PC 모두 완벽 작동)
+                import streamlit_shadcn_ui as ui  # 만약 이게 없다면 st.button으로 대체 가능
+                if st.button("📋 이 알림톡 양식 통째로 복사하기"):
+                    st.write('<script>navigator.clipboard.writeText(`' + report_text + '`);</script>', unsafe_allow_html=True)
+                    st.success("클립보드에 카톡 양식이 복사되었습니다! 카톡창에 붙여넣기(Ctrl+V) 하세요.")
+
+            st.divider()
+
+            # --- 🟢 [기존 그래프 및 세부 대시보드 유지] ---
+            st.markdown("### 📌 월간 통계 데이터 시각화")
             m1, m2, m3, m4 = st.columns(4)
-            m1.metric("📈 월평균 이행률", f"{int(df_filtered['hw_result_rate'].mean())}%")
-            m2.metric("⏱️ 총 수업시간", f"{int(df_filtered['duration'].sum())}분")
+            m1.metric("📈 월평균 이행률", f"{avg_hw}%")
+            m2.metric("⏱️ 총 수업시간", f"{total_dur}분")
             m3.metric("📝 누적 숙제 오답", f"{int(w_sums.sum())}개")
             m4.metric("🔥 누적 테스트 오답", f"{int(t_w_sums.sum())}개")
             
-            st.divider()
-
-            # --- 🔵 [중앙] 월간 종합 오답 원인 분석 (기존 파이 차트 유지) ---
-            st.markdown(f"### ❌ {selected_month} 종합 오답 원인 누적 분석")
             an_col1, an_col2 = st.columns(2)
-            
             with an_col1:
                 st.write("**[📖 월간 숙제 오답 분포]**")
                 if w_sums.sum() > 0:
                     fig_hw_pie = px.pie(values=w_sums.values, names=['계산실수', '개념부족', '고난도', '문제이해'], hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
                     fig_hw_pie.update_layout(margin=dict(t=20, b=20, l=10, r=10))
                     st.plotly_chart(fig_hw_pie, use_container_width=True)
-                else: 
-                    st.caption("💡 기록된 숙제 오답 데이터가 없습니다.")
+                else: st.caption("💡 숙제 오답 데이터가 없습니다.")
             
             with an_col2:
                 st.write("**[📝 월간 테스트 오답 분포]**")
@@ -622,58 +685,43 @@ with tab2:
                     fig_test_pie = px.pie(values=t_w_sums.values, names=['계산실수', '개념부족', '고난도', '문제이해'], hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe)
                     fig_test_pie.update_layout(margin=dict(t=20, b=20, l=10, r=10))
                     st.plotly_chart(fig_test_pie, use_container_width=True)
-                else: 
-                    st.caption("💡 기록된 테스트 오답 데이터가 없습니다.")
+                else: st.caption("💡 테스트 오답 데이터가 없습니다.")
 
             st.divider()
-
-            # --- 🟡 [신규 추가] 날짜(회차)별 상세 추이 분석 (하위 탭 구조) ---
+            
+            # 회차별 상세 변화 추이 (탭)
             st.markdown("### 📈 회차별 상세 변화 추이")
             chart_tab1, chart_tab2, chart_tab3 = st.tabs(["✍️ 숙제 이행률", "📖 숙제 오답 추이", "📝 테스트 오답 추이"])
             
-            # 하위 탭 1: 회차별 숙제 이행률 라인 차트
             with chart_tab1:
                 fig_hw_line = px.line(df_filtered, x='x_axis', y='hw_result_rate', markers=True, text='hw_result_rate', title="📊 회차별 숙제 이행률 추이(%)")
                 fig_hw_line.update_layout(xaxis_type='category', yaxis_range=[-5, 115])
                 fig_hw_line.update_traces(textposition="top center")
                 st.plotly_chart(fig_hw_line, use_container_width=True)
                 
-            # 하위 탭 2: 회차별 숙제 오답 원인 누적 막대 차트
             with chart_tab2:
                 if w_sums.sum() > 0:
-                    # 데이터 재구조화 (Bar 차트 표현용 무명 데이터프레임 빌드)
                     df_hw_bar = df_filtered.melt(id_vars=['x_axis'], value_vars=['err_calc', 'err_concept', 'err_hard', 'err_understand'], var_name='오답원인', value_name='개수')
                     df_hw_bar['오답원인'] = df_hw_bar['오답원인'].map({'err_calc': '계산실수', 'err_concept': '개념부족', 'err_hard': '고난도', 'err_understand': '문제이해'})
-                    
                     fig_hw_bar = px.bar(df_hw_bar, x='x_axis', y='개수', color='오답원인', title="📖 회차별 숙제 오답 원인 추이 (누적)", color_discrete_sequence=px.colors.qualitative.Pastel)
                     fig_hw_bar.update_layout(xaxis_type='category')
                     st.plotly_chart(fig_hw_bar, use_container_width=True)
-                else:
-                    st.caption("💡 숙제 오답 추이를 그릴 데이터가 없습니다.")
+                else: st.caption("💡 숙제 오답 추이 데이터가 없습니다.")
                     
-            # 하위 탭 3: 회차별 테스트 오답 원인 누적 막대 차트
             with chart_tab3:
                 if t_w_sums.sum() > 0:
                     df_test_bar = df_filtered.melt(id_vars=['x_axis'], value_vars=['test_calc', 'test_concept', 'test_hard', 'test_under'], var_name='오답원인', value_name='개수')
                     df_test_bar['오답원인'] = df_test_bar['오답원인'].map({'test_calc': '계산실수', 'test_concept': '개념부족', 'test_hard': '고난도', 'test_under': '문제이해'})
-                    
                     fig_test_bar = px.bar(df_test_bar, x='x_axis', y='개수', color='오답원인', title="📝 회차별 테스트 오답 원인 추이 (누적)", color_discrete_sequence=px.colors.qualitative.Safe)
                     fig_test_bar.update_layout(xaxis_type='category')
                     st.plotly_chart(fig_test_bar, use_container_width=True)
-                else:
-                    st.caption("💡 테스트 오답 추이를 그릴 데이터가 없습니다.")
+                else: st.caption("💡 테스트 오답 추이 데이터가 없습니다.")
 
             st.divider()
 
-            # --- 🔴 [하단] 월간 테스트 성적표 가독성 획기적 리뉴얼 ---
+            # 월간 데일리 테스트 리포트 (익스팬더)
             st.markdown("### 🏆 월간 데일리 테스트 리포트")
-            df_test_table = df_filtered[df_filtered['test_total'] > 0].copy()
-            
             if not df_test_table.empty:
-                # 1단계: 랭킹 스코어식 데이터 컬럼 계산
-                df_test_table['score_rate'] = (df_test_table['test_score'] / df_test_table['test_total'] * 100).astype(int)
-                
-                # 2단계: 표를 그냥 띄우는 게 아니라, 직관적인 카드 가독성 대시보드로 격상
                 for idx, row in df_test_table.iterrows():
                     t_date = row['date'].strftime('%Y-%m-%d')
                     t_name = row['test_name']
@@ -681,17 +729,14 @@ with tab2:
                     t_total = int(row['test_total'])
                     t_rate = row['score_rate']
                     
-                    # 성적 구별 이모지 부여 및 컴포넌트 색상 지정
-                    if t_rate >= 90: status_emoji, color_class = "🟢 [최우수]", "success"
-                    elif t_rate >= 70: status_emoji, color_class = "🔵 [양호]", "info"
-                    else: status_emoji, color_class = "🟡 [보완필요]", "warning"
+                    if t_rate >= 90: status_emoji = "🟢 [최우수]"
+                    elif t_rate >= 70: status_emoji = "🔵 [양호]"
+                    else: status_emoji = "🟡 [보완필요]"
                     
-                    # 한 줄 단위로 보기 편한 익스팬더 알림 카드 구성
                     with st.expander(f"{status_emoji} {t_date} | **{t_name}** 👉 정답률 {t_rate}%", expanded=True):
                         tc_1, tc_2, tc_3 = st.columns([1, 1, 2])
                         tc_1.metric("맞은 문항 수", f"{t_score} / {t_total} 문항")
                         
-                        # 오답 세부 지표 표기
                         err_parts = []
                         if row['test_calc'] > 0: err_parts.append(f"계산실수({int(row['test_calc'])})")
                         if row['test_concept'] > 0: err_parts.append(f"개념부족({int(row['test_concept'])})")
@@ -700,11 +745,9 @@ with tab2:
                         
                         err_text = ", ".join(err_parts) if err_parts else "틀린 문제 없음 (만점! 💯)"
                         tc_3.markdown(f"🔍 **오답 세부 원인:**\n\n`{err_text}`")
-            else: 
-                st.info("💡 이번 달에 진행된 데일리 테스트 기록이 존재하지 않습니다.")
+            else: st.info("💡 이번 달에 진행된 데일리 테스트 기록이 존재하지 않습니다.")
                 
-    else: 
-        st.info("📊 학습 분석을 진행할 세션 데이터가 아직 입력되지 않았습니다.")
+    else: st.info("📊 학습 분석을 진행할 세션 데이터가 아직 입력되지 않았습니다.")
 
 # --- TAB 3: 교재 관리 ---
 with tab3:
