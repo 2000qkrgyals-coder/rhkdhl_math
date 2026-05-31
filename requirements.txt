@@ -2,4 +2,5 @@ st-gsheets-connection
 streamlit
 pandas
 plotly
+kaleido==0.2.1
 reportlab
