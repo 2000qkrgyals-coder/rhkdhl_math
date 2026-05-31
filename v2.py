@@ -700,12 +700,12 @@ with tab2:
 
                         def build_full_report_pdf():
                             pdf_buffer = io.BytesIO()
-                            doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+                            doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=40, bottomMargin=40)
                             styles = getSampleStyleSheet()
                             
-                            t_style = ParagraphStyle('T1', parent=styles['Heading1'], fontName='NanumGothic', fontSize=18, leading=24, spaceAfter=12, textColor=colors.HexColor('#1E3A8A'))
-                            sub_style = ParagraphStyle('T2', parent=styles['Heading2'], fontName='NanumGothic', fontSize=11, leading=16, spaceBefore=4, spaceAfter=4, textColor=colors.HexColor('#1E3A8A'))
-                            b_style = ParagraphStyle('B1', parent=styles['Normal'], fontName='NanumGothic', fontSize=10, leading=17, spaceAfter=6, textColor=colors.HexColor('#334155'))
+                            t_style = ParagraphStyle('T1', parent=styles['Heading1'], fontName='NanumGothic', fontSize=18, leading=24, spaceAfter=14, textColor=colors.HexColor('#1E3A8A'))
+                            sub_style = ParagraphStyle('T2', parent=styles['Heading2'], fontName='NanumGothic', fontSize=11, leading=16, spaceBefore=8, spaceAfter=6, textColor=colors.HexColor('#1E3A8A'))
+                            b_style = ParagraphStyle('B1', parent=styles['Normal'], fontName='NanumGothic', fontSize=9.5, leading=16, spaceAfter=4, textColor=colors.HexColor('#334155'))
                             guide_style = ParagraphStyle('GD', parent=styles['Normal'], fontName='NanumGothic', fontSize=8.5, leading=13, alignment=1, textColor=colors.HexColor('#1E3A8A'))
                             
                             story = []
@@ -713,27 +713,29 @@ with tab2:
                             def get_divider_line():
                                 d_table = Table([[""]], colWidths=[540], rowHeights=[1])
                                 d_table.setStyle(TableStyle([
-                                    ('LINEABOVE', (0,0), (-1,-1), 0.75, colors.HexColor('#E2E8F0')),
+                                    ('LINEABOVE', (0,0), (-1,-1), 0.75, colors.HexColor('#CBD5E1')),
                                     ('BOTTOMPADDING', (0,0), (-1,-1), 0),
                                     ('TOPPADDING', (0,0), (-1,-1), 0)
                                 ]))
                                 return d_table
                             
-                            # --- [PAGE 1] 숙제 분석 영역 ---
-                            story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서 (1/3)</b>", t_style))
+                            # 메인 타이틀 세팅
+                            story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서</b>", t_style))
                             story.append(Spacer(1, 2))
                             
+                            # 가이드라인 배치
                             guide_box = Table([[Paragraph("<b>💡 [그래프 용어 가이드]</b> &nbsp;&nbsp; <b>Calc :</b> 계산 실수 &nbsp;|&nbsp; <b>Concept :</b> 개념 부족 &nbsp;|&nbsp; <b>Advanced :</b> 고난도 문항 &nbsp;|&nbsp; <b>Logic :</b> 문제 문해력 및 이해 부족", guide_style)]], colWidths=[540])
                             guide_box.setStyle(TableStyle([
                                 ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#EFF6FF')),
                                 ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#BFDBFE')),
-                                ('PADDING', (0,0), (-1,-1), 5),
+                                ('PADDING', (0,0), (-1,-1), 6),
                                 ('ALIGN', (0,0), (-1,-1), 'CENTER')
                             ]))
                             story.append(guide_box)
                             story.append(Spacer(1, 14))
                             
-                            def convert_to_hq_image(fig, width=530, height=220):
+                            # 화질 선명화 및 투명화 레이아웃 클리닝 함수
+                            def convert_to_hq_image(fig, width=520, height=150):
                                 fig.update_layout(
                                     paper_bgcolor='rgba(0,0,0,0)',
                                     plot_bgcolor='rgba(0,0,0,0)',
@@ -744,89 +746,105 @@ with tab2:
                                 img_bytes = fig.to_image(format="png", width=width, height=height, scale=3)
                                 return Image(io.BytesIO(img_bytes), width=width, height=height)
                             
+                            # 순서 1: 회차별 숙제 이행률 그래프
                             if fig_hw_line:
                                 pdf_hw_line = copy.deepcopy(fig_hw_line)
-                                pdf_hw_line.update_layout(title=None, margin=dict(t=10, b=30, l=45, r=20), font=dict(family="sans-serif", size=9.5), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-                                story.append(Paragraph("<b>[1] 회차별 숙제 이행률 추이 그래프</b>", sub_style))
-                                story.append(Spacer(1, 4))
-                                story.append(convert_to_hq_image(pdf_hw_line, width=530, height=215))
-                                story.append(Spacer(1, 15))
-                                story.append(get_divider_line())
-                                story.append(Spacer(1, 15))
+                                pdf_hw_line.update_layout(title=None, margin=dict(t=10, b=30, l=40, r=20), font=dict(family="sans-serif", size=9), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                                g1_block = [
+                                    Paragraph("<b>[1] 회차별 숙제 이행률 추이 그래프</b>", sub_style),
+                                    Spacer(1, 4),
+                                    convert_to_hq_image(pdf_hw_line, width=520, height=140),
+                                    Spacer(1, 10),
+                                    get_divider_line(),
+                                    Spacer(1, 10)
+                                ]
+                                story.append(KeepTogether(g1_block))
 
+                            # 순서 2: 숙제 회차별 오답분석 그래프
                             if fig_hw_bar:
                                 pdf_hw_bar = copy.deepcopy(fig_hw_bar)
-                                pdf_hw_bar.update_layout(title=None, margin=dict(t=10, b=30, l=45, r=20), font=dict(family="sans-serif", size=9.5), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(bgcolor='rgba(0,0,0,0)', bordercolor='rgba(0,0,0,0)'))
+                                pdf_hw_bar.update_layout(title=None, margin=dict(t=10, b=30, l=40, r=20), font=dict(family="sans-serif", size=9), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(bgcolor='rgba(0,0,0,0)', bordercolor='rgba(0,0,0,0)'))
                                 for trace in pdf_hw_bar.data:
                                     if trace.name == '계산실수': trace.name = 'Calc'
                                     elif trace.name == '개념부족': trace.name = 'Concept'
                                     elif trace.name == '고난도': trace.name = 'Advanced'
                                     elif trace.name == '문제이해': trace.name = 'Logic'
-                                story.append(Paragraph("<b>[2] 숙제 회차별 오답 원인 분석 그래프</b>", sub_style))
-                                story.append(Spacer(1, 4))
-                                story.append(convert_to_hq_image(pdf_hw_bar, width=530, height=215))
+                                g2_block = [
+                                    Paragraph("<b>[2] 숙제 회차별 오답 원인 분석 그래프</b>", sub_style),
+                                    Spacer(1, 4),
+                                    convert_to_hq_image(pdf_hw_bar, width=520, height=140),
+                                    Spacer(1, 10),
+                                    get_divider_line(),
+                                    Spacer(1, 10)
+                                ]
+                                story.append(KeepTogether(g2_block))
 
-                            story.append(PageBreak())
-
-                            # --- [PAGE 2] 데일리테스트 영역 ---
-                            story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서 (2/3)</b>", t_style))
-                            story.append(Spacer(1, 12))
-                            
+                            # 순서 3: 회차별 테스트 결과 그래프
                             if fig_test_line:
                                 pdf_test_line = copy.deepcopy(fig_test_line)
-                                pdf_test_line.update_layout(title=None, margin=dict(t=10, b=30, l=45, r=20), font=dict(family="sans-serif", size=9.5), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-                                story.append(Paragraph("<b>[3] 회차별 데일리 테스트 결과 그래프</b>", sub_style))
-                                story.append(Spacer(1, 4))
-                                story.append(convert_to_hq_image(pdf_test_line, width=530, height=225))
-                                story.append(Spacer(1, 15))
-                                story.append(get_divider_line())
-                                story.append(Spacer(1, 15))
+                                pdf_test_line.update_layout(title=None, margin=dict(t=10, b=30, l=40, r=20), font=dict(family="sans-serif", size=9), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                                g3_block = [
+                                    Paragraph("<b>[3] 회차별 데일리 테스트 결과 그래프</b>", sub_style),
+                                    Spacer(1, 4),
+                                    convert_to_hq_image(pdf_test_line, width=520, height=140),
+                                    Spacer(1, 10),
+                                    get_divider_line(),
+                                    Spacer(1, 10)
+                                ]
+                                story.append(KeepTogether(g3_block))
 
+                            # 순서 4: 테스트 오답 회차별 그래프
                             if fig_test_bar:
                                 pdf_test_bar = copy.deepcopy(fig_test_bar)
-                                pdf_test_bar.update_layout(title=None, margin=dict(t=10, b=30, l=45, r=20), font=dict(family="sans-serif", size=9.5), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(bgcolor='rgba(0,0,0,0)', bordercolor='rgba(0,0,0,0)'))
+                                pdf_test_bar.update_layout(title=None, margin=dict(t=10, b=30, l=40, r=20), font=dict(family="sans-serif", size=9), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(bgcolor='rgba(0,0,0,0)', bordercolor='rgba(0,0,0,0)'))
                                 for trace in pdf_test_bar.data:
                                     if trace.name == '계산실수': trace.name = 'Calc'
                                     elif trace.name == '개념부족': trace.name = 'Concept'
                                     elif trace.name == '고난도': trace.name = 'Advanced'
                                     elif trace.name == '문제이해': trace.name = 'Logic'
-                                story.append(Paragraph("<b>[4] 데일리 테스트 오답 회차별 통계 그래프</b>", sub_style))
-                                story.append(Spacer(1, 4))
-                                story.append(convert_to_hq_image(pdf_test_bar, width=530, height=225))
+                                g4_block = [
+                                    Paragraph("<b>[4] 데일리 테스트 오답 회차별 통계 그래프</b>", sub_style),
+                                    Spacer(1, 4),
+                                    convert_to_hq_image(pdf_test_bar, width=520, height=140),
+                                    Spacer(1, 10),
+                                    get_divider_line(),
+                                    Spacer(1, 10)
+                                ]
+                                story.append(KeepTogether(g4_block))
 
-                            story.append(PageBreak())
-
-                            # --- [PAGE 3] 종합 피드백 영역 ---
-                            story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서 (3/3)</b>", t_style))
-                            story.append(Spacer(1, 10))
-                            
+                            # 순서 5: 전체 핵심 오답 분포 그래프 (파이 차트 나란히)
                             img_pie_list = []
                             if fig_hw_pie:
                                 pdf_hw_pie = copy.deepcopy(fig_hw_pie)
-                                pdf_hw_pie.update_layout(title="Homework Shares", font=dict(family="sans-serif", size=8.5), margin=dict(t=15, b=15, l=10, r=10), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                                pdf_hw_pie.update_layout(title="Homework Shares", font=dict(family="sans-serif", size=8.5), margin=dict(t=20, b=20, l=10, r=10), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                                 pdf_hw_pie.update_traces(labels=['Calc', 'Concept', 'Advanced', 'Logic'])
-                                img_bytes_hw = pdf_hw_pie.to_image(format="png", width=240, height=130, scale=3)
-                                img_pie_list.append(Image(io.BytesIO(img_bytes_hw), width=240, height=130))
+                                img_bytes_hw = pdf_hw_pie.to_image(format="png", width=250, height=150, scale=3)
+                                img_pie_list.append(Image(io.BytesIO(img_bytes_hw), width=250, height=150))
                                 
                             if fig_test_pie:
                                 pdf_test_pie = copy.deepcopy(fig_test_pie)
-                                pdf_test_pie.update_layout(title="Test Shares", font=dict(family="sans-serif", size=8.5), margin=dict(t=15, b=15, l=10, r=10), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                                pdf_test_pie.update_layout(title="Test Shares", font=dict(family="sans-serif", size=8.5), margin=dict(t=20, b=20, l=10, r=10), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                                 pdf_test_pie.update_traces(labels=['Calc', 'Concept', 'Advanced', 'Logic'])
-                                img_bytes_test = pdf_test_pie.to_image(format="png", width=240, height=130, scale=3)
-                                img_pie_list.append(Image(io.BytesIO(img_bytes_test), width=240, height=130))
+                                img_bytes_test = pdf_test_pie.to_image(format="png", width=250, height=150, scale=3)
+                                img_pie_list.append(Image(io.BytesIO(img_bytes_test), width=250, height=150))
                                 
                             if img_pie_list:
                                 t_charts = Table([img_pie_list], colWidths=[270, 270])
                                 t_charts.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'MIDDLE')]))
-                                story.append(Paragraph("<b>[5] 월간 누적 전체 오답 유형 비중 분포</b>", sub_style))
-                                story.append(Spacer(1, 4))
-                                story.append(t_charts)
-                                story.append(Spacer(1, 14))
-                                story.append(get_divider_line())
-                                story.append(Spacer(1, 14))
+                                g5_block = [
+                                    Paragraph("<b>[5] 월간 누적 전체 오답 유형 비중 분포</b>", sub_style),
+                                    Spacer(1, 4),
+                                    t_charts,
+                                    Spacer(1, 10),
+                                    get_divider_line(),
+                                    Spacer(1, 10)
+                                ]
+                                story.append(KeepTogether(g5_block))
                             
-                            story.append(Paragraph("<b>📝 담당 교사 월간 종합 피드백</b>", t_style))
-                            story.append(Spacer(1, 6))
+                            # 7. 종합 피드백 섹션 박스 조판
+                            feedback_story = []
+                            feedback_story.append(Paragraph(f"<b>📝 담당 교사 월간 종합 피드백</b>", t_style))
+                            feedback_story.append(Spacer(1, 6))
                             
                             f_body = []
                             for line in edited_report.split('\n'):
@@ -840,9 +858,10 @@ with tab2:
                                 ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F8FAFC')),
                                 ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#E2E8F0')),
                                 ('LINELEFT', (0,0), (-1,-1), 4, colors.HexColor('#1E3A8A')),
-                                ('PADDING', (0,0), (-1,-1), 14)
+                                ('PADDING', (0,0), (-1,-1), 12)
                             ]))
-                            story.append(t_feedback)
+                            feedback_story.append(t_feedback)
+                            story.append(KeepTogether(feedback_story))
                             
                             doc.build(story)
                             pdf_bytes = pdf_buffer.getvalue()
