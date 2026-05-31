@@ -572,7 +572,7 @@ with tab1:
     if col_h2.button("➖ 숙제칸-", key="btn_sub_hw"): 
         st.session_state.h_rows = max(1, st.session_state.h_rows - 1)
         st.rerun()
-# --- TAB 2: 학습 분석 (디자인 완성도 극대화 + 한글 가이드라인 매핑 버전) ---
+# --- TAB 2: 학습 분석 (데일리 테스트 정답률 그래프 + 디자인 완성도 극대화 버전) ---
 with tab2:
     st.markdown("## 📊 월별 상세 학습 통계")
     
@@ -659,7 +659,7 @@ with tab2:
 
             st.divider()
 
-            # --- 📌 2. 그래프 객체 생성 및 폰트 사전 세팅 (화면 브리핑용 - 한글 100% 정상 작동) ---
+            # --- 📌 2. 그래프 객체 생성 및 폰트 사전 세팅 (화면 브리핑용) ---
             if w_sums.sum() > 0:
                 fig_hw_pie = px.pie(values=w_sums.values, names=['계산실수', '개념부족', '고난도', '문제이해'], hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
                 fig_hw_pie.update_layout(margin=dict(t=20, b=20, l=10, r=10), width=350, height=300)
@@ -670,9 +670,17 @@ with tab2:
                 fig_test_pie.update_layout(margin=dict(t=20, b=20, l=10, r=10), width=350, height=300)
             else: fig_test_pie = None
 
+            # 📈 그래프 C: 회차별 숙제 이행률 라인
             fig_hw_line = px.line(df_filtered, x='x_axis', y='hw_result_rate', markers=True, text='hw_result_rate', title="📊 회차별 숙제 이행률 추이(%)")
             fig_hw_line.update_layout(xaxis_type='category', yaxis_range=[-5, 115], width=700, height=320)
             fig_hw_line.update_traces(textposition="top center")
+
+            # 📈 [신규] 그래프 C-2: 회차별 데일리 테스트 정답률 라인 (화면용)
+            if not df_test_table.empty:
+                fig_test_line = px.line(df_test_table, x='x_axis', y='score_rate', markers=True, text='score_rate', title="🎯 회차별 데일리 테스트 정답률 추이(%)")
+                fig_test_line.update_layout(xaxis_type='category', yaxis_range=[-5, 115], width=700, height=320)
+                fig_test_line.update_traces(textposition="top center", line=dict(color='#EF4444', width=3)) # 명확히 구분되도록 빨간색 계열 선 세팅
+            else: fig_test_line = None
 
             if w_sums.sum() > 0:
                 df_hw_bar = df_filtered.melt(id_vars=['x_axis'], value_vars=['err_calc', 'err_concept', 'err_hard', 'err_understand'], var_name='오답원인', value_name='개수')
@@ -713,16 +721,13 @@ with tab2:
 
                     def build_full_report_pdf():
                         pdf_buffer = io.BytesIO()
-                        # 대충 만든 느낌을 없애기 위해 마진 슬림화 및 그리드 정렬 조정
                         doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
                         styles = getSampleStyleSheet()
                         
-                        # 폰트 스타일 가독성 및 자간 조정
                         t_style = ParagraphStyle('T1', parent=styles['Heading1'], fontName='NanumGothic', fontSize=20, leading=26, spaceAfter=15, textColor=colors.HexColor('#1E3A8A'))
                         sub_style = ParagraphStyle('T2', parent=styles['Heading2'], fontName='NanumGothic', fontSize=12, leading=16, spaceBefore=12, spaceAfter=6, textColor=colors.HexColor('#0F172A'))
                         b_style = ParagraphStyle('B1', parent=styles['Normal'], fontName='NanumGothic', fontSize=9.5, leading=16, spaceAfter=4, textColor=colors.HexColor('#334155'))
                         
-                        # 💡 [신규] 차트 하단 용어 해설용 전용 가이드 스타일
                         guide_style = ParagraphStyle('GD', parent=styles['Normal'], fontName='NanumGothic', fontSize=8.5, leading=12, alignment=1, textColor=colors.HexColor('#1E3A8A'))
                         
                         th_style = ParagraphStyle('TH', parent=styles['Normal'], fontName='NanumGothic', fontSize=9, leading=12, alignment=1, textColor=colors.white)
@@ -756,7 +761,7 @@ with tab2:
                             t_charts.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'MIDDLE')]))
                             story.append(t_charts)
                         
-                        # 💡 [핵심 패치] 차트 하단에 한글 뜻을 매핑해주는 미려한 설명 인덱스 박스 장착
+                        # 차트 용어 매핑 가이드라인 박스
                         guide_box = Table([[Paragraph("<b>💡 [그래프 용어 가이드]</b> &nbsp;&nbsp; <b>Calc :</b> 계산 실수 &nbsp;|&nbsp; <b>Concept :</b> 개념 부족 &nbsp;|&nbsp; <b>Advanced :</b> 고난도 문항 &nbsp;|&nbsp; <b>Logic :</b> 문제 문해력 및 이해 부족", guide_style)]], colWidths=[520])
                         guide_box.setStyle(TableStyle([
                             ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#EFF6FF')),
@@ -767,14 +772,21 @@ with tab2:
                         story.append(guide_box)
                         story.append(Spacer(1, 12))
                         
-                        # 3. 회차별 추이 차트 섹션 (빈 공간 제거를 위해 높이 정밀 다이어트 200 -> 165)
+                        # 3. 회차별 추이 차트 섹션 (성적 곡선 추가 및 여백 타이트 관리)
                         story.append(Paragraph("<b>[2] 세션 회차별 성적 및 과제 성실도 변화 추이</b>", sub_style))
                         
                         trend_story = []
                         if fig_hw_line:
                             pdf_hw_line = copy.deepcopy(fig_hw_line)
                             pdf_hw_line.update_layout(title="Homework Completion Rate Trend (%)", xaxis_title="Session", yaxis_title="Rate (%)", font=dict(family="sans-serif", size=8.5), margin=dict(t=30, b=30))
-                            trend_story.append(Image(io.BytesIO(pdf_hw_line.to_image(format="png")), width=520, height=160))
+                            trend_story.append(Image(io.BytesIO(pdf_hw_line.to_image(format="png")), width=520, height=155))
+                            trend_story.append(Spacer(1, 4))
+                        
+                        # ✨ [신규 PDF 패치] 데일리 테스트 정답률 흐름 차트 조판 추가
+                        if fig_test_line:
+                            pdf_test_line = copy.deepcopy(fig_test_line)
+                            pdf_test_line.update_layout(title="Daily Test Score Rate Trend (%)", xaxis_title="Session", yaxis_title="Rate (%)", font=dict(family="sans-serif", size=8.5), margin=dict(t=30, b=30))
+                            trend_story.append(Image(io.BytesIO(pdf_test_line.to_image(format="png")), width=520, height=155))
                             trend_story.append(Spacer(1, 4))
                         
                         if fig_hw_bar:
@@ -785,7 +797,7 @@ with tab2:
                                 elif trace.name == '개념부족': trace.name = 'Concept'
                                 elif trace.name == '고난도': trace.name = 'Advanced'
                                 elif trace.name == '문제이해': trace.name = 'Logic'
-                            trend_story.append(Image(io.BytesIO(pdf_hw_bar.to_image(format="png")), width=520, height=160))
+                            trend_story.append(Image(io.BytesIO(pdf_hw_bar.to_image(format="png")), width=520, height=155))
                             trend_story.append(Spacer(1, 4))
                             
                         if fig_test_bar:
@@ -796,12 +808,12 @@ with tab2:
                                 elif trace.name == '개념부족': trace.name = 'Concept'
                                 elif trace.name == '고난도': trace.name = 'Advanced'
                                 elif trace.name == '문제이해': trace.name = 'Logic'
-                            trend_story.append(Image(io.BytesIO(pdf_test_bar.to_image(format="png")), width=520, height=160))
+                            trend_story.append(Image(io.BytesIO(pdf_test_bar.to_image(format="png")), width=520, height=155))
                         
                         story.append(KeepTogether(trend_story))
                         story.append(Spacer(1, 12))
                         
-                        # 4. 데일리 테스트 표 디자인 고급화 패치
+                        # 4. 데일리 테스트 표 디자인 영역
                         table_story = []
                         table_story.append(Paragraph("<b>[3] 월간 데일리 테스트 상세 평정 내역</b>", sub_style))
                         
@@ -828,15 +840,14 @@ with tab2:
                                     Paragraph(e_txt, td_left_style)
                                 ])
                             
-                            # 여백 컴팩트하게 채우기
                             t_report = Table(table_data, colWidths=[55, 140, 55, 270])
                             t_report.setStyle(TableStyle([
-                                ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1E3A8A')), # 신뢰감을 주는 네이비 헤더
+                                ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1E3A8A')),
                                 ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
                                 ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
                                 ('TOPPADDING', (0,0), (-1,-1), 5),
                                 ('BOTTOMPADDING', (0,0), (-1,-1), 5),
-                                ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#F8FAFC')]) # 덤벨 줄무늬 스타일로 가독성 확보
+                                ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#F8FAFC')])
                             ]))
                             table_story.append(t_report)
                         else:
@@ -845,25 +856,23 @@ with tab2:
                         story.append(KeepTogether(table_story))
                         story.append(Spacer(1, 15))
                         
-                        # 5. 종합 피드백 섹션 (페이지 붕 뜸 방지를 위해 박스형 구조로 하단에 타이트하게 통합 배치)
+                        # 5. 종합 피드백 섹션 박스 조판
                         feedback_story = []
                         feedback_story.append(Paragraph(f"<b>📝 담당 교사 종합 학습 피드백</b>", t_style))
                         feedback_story.append(Spacer(1, 4))
                         
                         f_body = []
                         for line in edited_report.split('\n'):
-                            # 알림톡 기호 제거 및 라인 정돈
                             if '📊' in line or '📌' in line or '📝' in line or '━━━━━━━━━━━━━━━━━━━━' in line:
                                 continue
                             if line.strip():
                                 f_body.append(Paragraph(line.strip(), b_style))
                         
-                        # 피드백 내용 블록화
                         t_feedback = Table([[f_body]], colWidths=[520])
                         t_feedback.setStyle(TableStyle([
                             ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F8FAFC')),
                             ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#E2E8F0')),
-                            ('LINELEFT', (0,0), (-1,-1), 4, colors.HexColor('#1E3A8A')), # 왼쪽에 두꺼운 포인트 라인 배치
+                            ('LINELEFT', (0,0), (-1,-1), 4, colors.HexColor('#1E3A8A')),
                             ('PADDING', (0,0), (-1,-1), 12)
                         ]))
                         feedback_story.append(t_feedback)
@@ -909,14 +918,18 @@ with tab2:
             st.divider()
             
             st.markdown("### 📈 회차별 상세 변화 추이")
-            chart_tab1, chart_tab2, chart_tab3 = st.tabs(["✍️ 숙제 이행률", "📖 숙제 오답 추이", "📝 테스트 오답 추이"])
+            # 💡 기존 3개 탭에서 "📝 테스트 정답률" 탭을 추가하여 총 4개 탭 구조로 고도화
+            chart_tab1, chart_tab2, chart_tab3, chart_tab4 = st.tabs(["✍️ 숙제 이행률", "🎯 테스트 정답률", "📖 숙제 오답 추이", "📝 테스트 오답 추이"])
             
             with chart_tab1:
                 st.plotly_chart(fig_hw_line, use_container_width=True)
             with chart_tab2:
+                if fig_test_line: st.plotly_chart(fig_test_line, use_container_width=True)
+                else: st.caption("💡 테스트 성적 추이 데이터가 없습니다.")
+            with chart_tab3:
                 if fig_hw_bar: st.plotly_chart(fig_hw_bar, use_container_width=True)
                 else: st.caption("💡 숙제 오답 추이 데이터가 없습니다.")
-            with chart_tab3:
+            with chart_tab4:
                 if fig_test_bar: st.plotly_chart(fig_test_bar, use_container_width=True)
                 else: st.caption("💡 테스트 오답 추이 데이터가 없습니다.")
 
