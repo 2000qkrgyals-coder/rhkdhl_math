@@ -572,7 +572,7 @@ with tab1:
     if col_h2.button("➖ 숙제칸-", key="btn_sub_hw"): 
         st.session_state.h_rows = max(1, st.session_state.h_rows - 1)
         st.rerun()
-# --- TAB 2: 학습 분석 (학생 전환 패치 + PDF 다운로드 추가 버전) ---
+# --- TAB 2: 학습 분석 (PDF 완전 방어 패치 버전) ---
 with tab2:
     st.markdown("## 📊 월별 상세 학습 통계")
     
@@ -593,7 +593,7 @@ with tab2:
             avg_hw = int(df_filtered['hw_result_rate'].mean())
             total_dur = int(df_filtered['duration'].sum())
             
-            # --- 🤖 [패치 완료] AI 월간 종합 피드백 리포트 시스템 ---
+            # --- 🤖 AI 월간 종합 피드백 리포트 시스템 ---
             st.markdown("### 🤖 AI 월간 종합 브리핑 룸")
             
             max_hw_err = w_sums.idxmax() if w_sums.sum() > 0 else "none"
@@ -646,7 +646,7 @@ with tab2:
 
 - 수학 교사 올림 -"""
 
-            # 화면에 AI 리포트 출력 (💡 key값에 s_id와 selected_month를 바인딩하여 학생 변경 시 실시간 새로고침 유도)
+            # 화면에 AI 리포트 출력
             with st.container(border=True):
                 st.markdown(f"#### 📝 **{selected_month} 학부모 브리핑 초안**")
                 edited_report = st.text_area("카톡 전송용 텍스트 (수정 가능)", value=report_text, height=320, key=f"ai_rep_{s_id}_{selected_month}")
@@ -658,54 +658,54 @@ with tab2:
                         st.success("클립보드에 복사되었습니다!")
                 
                 with btn_c2:
-                    # --- 📄 [신규] PDF 리포트 파일 빌드 로직 ---
+                    # --- 📄 [엔진 전면 교체] PDF 리포트 파일 빌드 로직 ---
                     try:
+                        import io
+                        import urllib.request
                         from reportlab.lib.pagesizes import letter
                         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
                         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
                         from reportlab.pdfbase import pdfmetrics
-                        from reportlab.pdfbase.ttcounts import TTFontFile
                         from reportlab.pdfbase.ttfonts import TTFont
-                        import urllib.request
-                        import io
                         
-                        # 깨짐 방지용 원격 한글 폰트(나눔고딕) 메모리 임시 로드 및 등록
+                        # 폰트 다운로드 함수 안정화 (최상단 배치)
                         @st.cache_data
-                        def load_font():
+                        def download_nanum_font():
                             font_url = "https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Regular.ttf"
-                            response = urllib.request.urlopen(font_url)
-                            return response.read()
+                            req = urllib.request.Request(font_url, headers={'User-Agent': 'Mozilla/5.0'})
+                            with urllib.request.urlopen(req) as response:
+                                return response.read()
                         
-                        font_data = load_font()
-                        pdfmetrics.registerFont(TTFont('NanumGothic', io.BytesIO(font_data)))
+                        # 폰트 등록 검증
+                        try:
+                            pdfmetrics.getFont('NanumGothic')
+                        except KeyError:
+                            font_bytes = download_nanum_font()
+                            pdfmetrics.registerFont(TTFont('NanumGothic', io.BytesIO(font_bytes)))
                         
-                        # PDF 생성 함수
-                        def generate_pdf(text_content):
-                            buffer = io.BytesIO()
-                            doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
-                            styles = getSampleStyleSheet()
-                            
-                            # 한글 전용 스타일 설정
-                            title_style = ParagraphStyle('_Title', parent=styles['Heading1'], fontName='NanumGothic', fontSize=18, leading=22, spaceAfter=15)
-                            body_style = ParagraphStyle('_Body', parent=styles['Normal'], fontName='NanumGothic', fontSize=11, leading=16, spaceAfter=8)
-                            
-                            story = []
-                            story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 리포트</b>", title_style))
-                            story.append(Spacer(1, 10))
-                            
-                            # 줄바꿈 단락 파싱 처리
-                            for line in text_content.split('\n'):
-                                clean_line = line.replace('━━━━━━━━━━━━━━━━━━━━', '--------------------------------------------')
-                                if clean_line.strip() == "":
-                                    story.append(Spacer(1, 6))
-                                else:
-                                    story.append(Paragraph(clean_line, body_style))
-                                    
-                            doc.build(story)
-                            buffer.seek(0)
-                            return buffer.getvalue()
+                        # PDF 바이너리 빌드 핵심부
+                        buffer = io.BytesIO()
+                        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=45, leftMargin=45, topMargin=45, bottomMargin=45)
+                        styles = getSampleStyleSheet()
                         
-                        pdf_data = generate_pdf(edited_report)
+                        # 중복 정의 피하기 위해 고유 아이디 사용
+                        title_style = ParagraphStyle('PDFTitleStyle', parent=styles['Heading1'], fontName='NanumGothic', fontSize=16, leading=22, spaceAfter=15)
+                        body_style = ParagraphStyle('PDFBodyStyle', parent=styles['Normal'], fontName='NanumGothic', fontSize=10, leading=16, spaceAfter=6)
+                        
+                        story = []
+                        story.append(Paragraph(f"<b>📊 {selected_month} 종합 학습 분석 리포트</b>", title_style))
+                        story.append(Spacer(1, 10))
+                        
+                        for line in edited_report.split('\n'):
+                            clean_line = line.replace('━━━━━━━━━━━━━━━━━━━━', '--------------------------------------------')
+                            if not clean_line.strip():
+                                story.append(Spacer(1, 5))
+                            else:
+                                story.append(Paragraph(clean_line, body_style))
+                                
+                        doc.build(story)
+                        pdf_data = buffer.getvalue()
+                        buffer.close()
                         
                         st.download_button(
                             label="📄 월간 분석 PDF 다운로드",
@@ -715,7 +715,8 @@ with tab2:
                             use_container_width=True
                         )
                     except Exception as pdf_err:
-                        st.error(f"PDF 생성 모듈 로드 실패 (requirements.txt에 reportlab 확인 요망)")
+                        # 디버깅 전용 메시지 노출 패치 (실제 에러 원인 표기)
+                        st.error(f"⚠️ PDF 빌드 실패 원인: {str(pdf_err)}")
 
             st.divider()
 
@@ -803,7 +804,6 @@ with tab2:
             else: st.info("💡 이번 달에 진행된 데일리 테스트 기록이 존재하지 않습니다.")
                 
     else: st.info("📊 학습 분석을 진행할 세션 데이터가 아직 입력되지 않았습니다.")
-
 # --- TAB 3: 교재 관리 ---
 with tab3:
     st.subheader("📚 교재 목록")
