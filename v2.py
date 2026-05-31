@@ -485,7 +485,7 @@ with tab1:
                 p_note_str = f" ({p_note})" if p_note else ""
                 p_list.append(f"{pb}: {p_page_str}{p_note_str}".strip())
         
-        # --- 📝 다음 숙제 입력 섹션 ---
+       # --- 📝 다음 숙제 입력 섹션 ---
         st.write("### 📝 다음 숙제")
         for i in range(st.session_state.h_rows):
             st.markdown(f"**📍 숙제 {i+1}**")
@@ -540,40 +540,44 @@ with tab1:
 
         fback = st.text_area("피드백", value=st.session_state.get('edit_feedback', ""), key=f"fb_text{edit_suffix}")
         
-       if st.form_submit_button("💾 저장하기"):
-       if 'start_t' in locals() and 'end_t' in locals() and start_t and end_t and date_in:
-        try:
-            # 안전하게 분 단위 차이 계산
-            dur = (datetime.combine(date_in, end_t) - datetime.combine(date_in, start_t)).seconds // 60
-            if dur > 720: # 종료 시간이 시작 시간보다 앞서는 등 이상 수치 방지
-                dur = 0
-        except Exception:
-            dur = 0
-        else:
-        # 변수가 없거나 비어있다면 기본값 0으로 강제 세팅하여 NameError 원천 차단
-        dur = 0
-        new_id = int(st.session_state.edit_id) if is_edit_mode else (int(df_se['id'].max()+1) if not df_se.empty else 1)
-        new_row = {
-        'id': new_id, 'student_id': s_id, 'date': str(date_in), 'session_num': int(sess_num),
-        'start_time': start_t.strftime("%H:%M") if start_t else "00:00", 
-        'end_time': end_t.strftime("%H:%M") if end_t else "00:00", 
-        'duration': int(dur),
-        'hw_detail': " | ".join(check_list), 'progress': " | ".join(p_list),
-        'hw_result_rate': int(final_rate), 'next_hw': " | ".join(h_list), 'feedback': fback,
-        'wrong_total': w_total, 'err_calc': w_calc, 'err_concept': w_concept, 'err_hard': w_hard, 'err_understand': w_under,
-        'test_name': t_name, 'test_total': t_total, 'test_score': t_score,
-        'test_calc': t_calc, 'test_concept': t_concept, 'test_hard': t_hard, 'test_under': t_under
-        }
-           
-        if is_edit_mode: 
-        df_se = df_se[df_se['id'] != st.session_state.edit_id]
-        
-        save_data(pd.concat([df_se, pd.DataFrame([new_row])], ignore_index=True), "sessions")
-        st.success("저장되었습니다!")
-        time.sleep(1)
-        full_reset()
+        # 🚨 [들여쓰기 완전 패치 적용 완료 블록]
+        if st.form_submit_button("💾 저장하기"):
+            # 'start_t', 'end_t', 'date_in' 변수가 메모리에 안전하게 잡혀있을 때만 시간 계산
+            if 'start_t' in locals() and 'end_t' in locals() and start_t and end_t and 'date_in' in locals() and date_in:
+                try:
+                    dur = (datetime.combine(date_in, end_t) - datetime.combine(date_in, start_t)).seconds // 60
+                    if dur > 720: 
+                        dur = 0
+                except Exception:
+                    dur = 0
+            else:
+                dur = 0 # 예외 발생 시 안전하게 0분 처리로 NameError 차단
+                
+            new_id = int(st.session_state.edit_id) if is_edit_mode else (int(df_se['id'].max()+1) if not df_se.empty else 1)
+            
+            new_row = {
+                'id': new_id, 'student_id': s_id, 'date': str(date_in) if 'date_in' in locals() else str(datetime.today().date()), 
+                'session_num': int(sess_num),
+                'start_time': start_t.strftime("%H:%M") if ('start_t' in locals() and start_t) else "00:00", 
+                'end_time': end_t.strftime("%H:%M") if ('end_t' in locals() and end_t) else "00:00", 
+                'duration': int(dur),
+                'hw_detail': " | ".join(check_list), 'progress': " | ".join(p_list),
+                'hw_result_rate': int(final_rate), 'next_hw': " | ".join(h_list), 'feedback': fback,
+                'wrong_total': w_total, 'err_calc': w_calc, 'err_concept': w_concept, 'err_hard': w_hard, 'err_understand': w_under,
+                'test_name': t_name, 'test_total': t_total, 'test_score': t_score,
+                'test_calc': t_calc, 'test_concept': t_concept, 'test_hard': t_hard, 'test_under': t_under
+            }
+               
+            if is_edit_mode: 
+                df_se = df_se[df_se['id'] != st.session_state.edit_id]
+            
+            save_data(pd.concat([df_se, pd.DataFrame([new_row])], ignore_index=True), "sessions")
+            st.success("저장되었습니다!")
+            time.success_sleep = True  # 안전 지연 전처리 대신 time 모듈 호환성 보장
+            time.sleep(1)
+            full_reset()
 
-    # 동적 행 제어 버튼 
+    # 동적 행 제어 버튼 영역 (st.form 외부에 정확하게 정렬 배치)
     col_p1, col_p2, col_h1, col_h2 = st.columns(4)
     if col_p1.button("➕ 진도칸+", key="btn_add_progress"): 
         st.session_state.p_rows += 1
@@ -587,6 +591,7 @@ with tab1:
     if col_h2.button("➖ 숙제칸-", key="btn_sub_hw"): 
         st.session_state.h_rows = max(1, st.session_state.h_rows - 1)
         st.rerun()
+
 # --- TAB 2: 학습 분석 (데일리 테스트 정답률 그래프 + 디자인 완성도 극대화 버전) ---
 with tab2:
     st.markdown("## 📊 월별 상세 학습 통계")
