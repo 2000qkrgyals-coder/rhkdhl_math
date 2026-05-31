@@ -572,7 +572,7 @@ with tab1:
     if col_h2.button("➖ 숙제칸-", key="btn_sub_hw"): 
         st.session_state.h_rows = max(1, st.session_state.h_rows - 1)
         st.rerun()
-# --- TAB 2: 학습 분석 (시각화 그래프+테스트 리포트 전체 포함 종합 PDF 버전) ---
+# --- TAB 2: 학습 분석 (글자 깨짐 방지 + 순서 재배치 + 표 조판 최적화 종합 PDF 버전) ---
 with tab2:
     st.markdown("## 📊 월별 상세 학습 통계")
     
@@ -694,13 +694,13 @@ with tab2:
             else: fig_test_bar = None
 
 
-            # --- 📄 [핵심 엔진] 종합 시각화 PDF 생성 처리단 ---
+            # --- 📄 [개선 엔지니어링] 시각화 PDF 레이아웃 재배치 및 글자 깨짐 방지 ---
             with btn_c2:
                 try:
                     import io
                     import urllib.request
                     from reportlab.lib.pagesizes import letter
-                    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
+                    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, PageBreak, KeepTogether
                     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
                     from reportlab.pdfbase import pdfmetrics
                     from reportlab.pdfbase.ttfonts import TTFont
@@ -715,62 +715,68 @@ with tab2:
                     try: pdfmetrics.getFont('NanumGothic')
                     except KeyError: pdfmetrics.registerFont(TTFont('NanumGothic', io.BytesIO(download_pdf_font())))
 
-                    # 🛠️ [클라이맥스] PDF 내부에 차트 이미지를 실시간 렌더링하는 함수
                     def build_full_report_pdf():
                         pdf_buffer = io.BytesIO()
-                        doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
+                        # 여백 조절을 통해 공간 확보
+                        doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=35, leftMargin=35, topMargin=35, bottomMargin=35)
                         styles = getSampleStyleSheet()
                         
-                        t_style = ParagraphStyle('T1', parent=styles['Heading1'], fontName='NanumGothic', fontSize=18, leading=24, spaceAfter=12, textColor=colors.HexColor('#1E3A8A'))
-                        sub_style = ParagraphStyle('T2', parent=styles['Heading2'], fontName='NanumGothic', fontSize=13, leading=18, spaceBefore=12, spaceAfter=8, textColor=colors.HexColor('#0369A1'))
-                        b_style = ParagraphStyle('B1', parent=styles['Normal'], fontName='NanumGothic', fontSize=9.5, leading=15, spaceAfter=4)
+                        t_style = ParagraphStyle('T1', parent=styles['Heading1'], fontName='NanumGothic', fontSize=18, leading=24, spaceAfter=14, textColor=colors.HexColor('#1E3A8A'))
+                        sub_style = ParagraphStyle('T2', parent=styles['Heading2'], fontName='NanumGothic', fontSize=13, leading=18, spaceBefore=14, spaceAfter=8, textColor=colors.HexColor('#0369A1'))
+                        b_style = ParagraphStyle('B1', parent=styles['Normal'], fontName='NanumGothic', fontSize=10, leading=16, spaceAfter=4)
+                        
+                        # 표 내부 글자 깨짐 방지용 전용 스타일 스타일
+                        th_style = ParagraphStyle('TH', parent=styles['Normal'], fontName='NanumGothic', fontSize=9, leading=12, alignment=1, textColor=colors.HexColor('#1E293B')) # 중앙정렬
+                        td_style = ParagraphStyle('TD', parent=styles['Normal'], fontName='NanumGothic', fontSize=9, leading=13, alignment=1) # 중앙정렬
+                        td_left_style = ParagraphStyle('TDL', parent=styles['Normal'], fontName='NanumGothic', fontSize=9, leading=13, alignment=0) # 좌측정렬 (오답내용용)
                         
                         story = []
-                        story.append(Paragraph(f"<b>📊 {selected_month} 종합 학습 분석 최종 보고서</b>", t_style))
-                        story.append(Spacer(1, 10))
                         
-                        # Part 1. 교사 총평 및 분석 텍스트 각인
-                        story.append(Paragraph("<b>[1] 담당 교사 종합 피드백</b>", sub_style))
-                        for line in edited_report.split('\n'):
-                            line_clean = line.replace('━━━━━━━━━━━━━━━━━━━━', '--------------------------------------------------')
-                            story.append(Paragraph(line_clean if line_clean.strip() else " ", b_style))
+                        # [순서 변경 1] 대제목 시작
+                        story.append(Paragraph(f"<b>📊 {selected_month} 종합 학습 분석 보고서</b>", t_style))
+                        story.append(Spacer(1, 5))
                         
-                        story.append(Spacer(1, 15))
-                        story.append(Paragraph("<b>[2] 핵심 오답 원인 분석 (전체 분포)</b>", sub_style))
-                        
-                        # 📸 Plotly 차트를 정적 이미지로 스냅샷 변환하여 PDF 스토리에 가둠
+                        # [순서 변경 2] 핵심 오답 원인 분석 (차트 파트가 최상단으로 이동)
+                        story.append(Paragraph("<b>[1] 핵심 오답 원인 분석 (전체 분포)</b>", sub_style))
                         img_data_list = []
                         if fig_hw_pie:
-                            img_data_list.append(Image(io.BytesIO(fig_hw_pie.to_image(format="png")), width=240, height=200))
+                            img_data_list.append(Image(io.BytesIO(fig_hw_pie.to_image(format="png")), width=245, height=195))
                         if fig_test_pie:
-                            img_data_list.append(Image(io.BytesIO(fig_test_pie.to_image(format="png")), width=240, height=200))
+                            img_data_list.append(Image(io.BytesIO(fig_test_pie.to_image(format="png")), width=245, height=195))
                         
                         if img_data_list:
-                            # 좌우 배치를 위해 테이블 서식 활용
-                            t_charts = Table([img_data_list], colWidths=[260, 260])
+                            t_charts = Table([img_data_list], colWidths=[265, 265])
                             t_charts.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'MIDDLE')]))
                             story.append(t_charts)
                         
-                        story.append(Spacer(1, 15))
-                        story.append(Paragraph("<b>[3] 회차별 숙제 이행률 및 성적 변화 추이</b>", sub_style))
+                        story.append(Spacer(1, 10))
                         
+                        # [순서 변경 3] 회차별 추이 그래프 시각화들 배치
+                        story.append(Paragraph("<b>[2] 회차별 숙제 이행률 및 성적 변화 추이</b>", sub_style))
                         if fig_hw_line:
-                            story.append(Image(io.BytesIO(fig_hw_line.to_image(format="png")), width=500, height=210))
-                        story.append(Spacer(1, 10))
-                        
+                            story.append(Image(io.BytesIO(fig_hw_line.to_image(format="png")), width=510, height=200))
+                        story.append(Spacer(1, 5))
                         if fig_hw_bar:
-                            story.append(Image(io.BytesIO(fig_hw_bar.to_image(format="png")), width=500, height=210))
+                            story.append(Image(io.BytesIO(fig_hw_bar.to_image(format="png")), width=510, height=200))
+                        story.append(Spacer(1, 5))
+                        if fig_test_bar:
+                            story.append(Image(io.BytesIO(fig_test_bar.to_image(format="png")), width=510, height=200))
+                        
                         story.append(Spacer(1, 10))
                         
-                        if fig_test_bar:
-                            story.append(Image(io.BytesIO(fig_test_bar.to_image(format="png")), width=500, height=210))
-                        
-                        # Part 4. 데일리 테스트 세부 리포트 표 양식 제작
-                        story.append(Spacer(1, 15))
-                        story.append(Paragraph("<b>[4] 월간 데일리 테스트 상세 내역</b>", sub_style))
+                        # [순서 변경 4] 데일리 테스트 세부 리포트 표 양식 제작 (글자 깨짐 방지 래핑 및 잘림방지 묶음)
+                        table_story = []
+                        table_story.append(Paragraph("<b>[3] 월간 데일리 테스트 상세 내역</b>", sub_style))
                         
                         if not df_test_table.empty:
-                            table_data = [["시험일자", "테스트 명칭", "정답률", "세부 오답 요인"]]
+                            # 표 헤더 글자 깨짐 방지 (Paragraph화)
+                            table_data = [[
+                                Paragraph("<b>시험일자</b>", th_style), 
+                                Paragraph("<b>테스트 명칭</b>", th_style), 
+                                Paragraph("<b>정답률</b>", th_style), 
+                                Paragraph("<b>세부 오답 요인</b>", th_style)
+                            ]]
+                            
                             for _, r in df_test_table.iterrows():
                                 e_parts = []
                                 if r['test_calc'] > 0: e_parts.append(f"계산({int(r['test_calc'])})")
@@ -779,28 +785,37 @@ with tab2:
                                 if r['test_under'] > 0: e_parts.append(f"이해({int(r['test_under'])})")
                                 e_txt = ", ".join(e_parts) if e_parts else "만점! 💯"
                                 
+                                # 모든 셀 데이터를 Paragraph로 래핑하여 폰트 소실 및 한글 깨짐 원천 차단
                                 table_data.append([
-                                    r['date'].strftime('%m/%d'),
-                                    r['test_name'],
-                                    f"{r['score_rate']}%",
-                                    e_txt
+                                    Paragraph(r['date'].strftime('%m/%d'), td_style),
+                                    Paragraph(r['test_name'], td_left_style),
+                                    Paragraph(f"{r['score_rate']}%", td_style),
+                                    Paragraph(e_txt, td_left_style)
                                 ])
                             
-                            t_report = Table(table_data, colWidths=[55, 150, 55, 240])
+                            t_report = Table(table_data, colWidths=[55, 150, 55, 250])
                             t_report.setStyle(TableStyle([
                                 ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#E2E8F0')),
-                                ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor('#1E293B')),
-                                ('FONTNAME', (0,0), (-1,-1), 'NanumGothic'),
-                                ('FONTSIZE', (0,0), (-1,-1), 9),
-                                ('ALIGN', (0,0), (0,-1), 'CENTER'),
-                                ('ALIGN', (2,0), (2,-1), 'CENTER'),
                                 ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
+                                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
                                 ('TOPPADDING', (0,0), (-1,-1), 6),
                                 ('BOTTOMPADDING', (0,0), (-1,-1), 6),
                             ]))
-                            story.append(t_report)
+                            table_story.append(t_report)
                         else:
-                            story.append(Paragraph("해당 월에 진행된 정식 테스트 이력이 없습니다.", b_style))
+                            table_story.append(Paragraph("해당 월에 진행된 정식 테스트 이력이 없습니다.", b_style))
+                        
+                        # 표와 표 제목이 서로 다른 페이지로 찢어지지 않도록 강제 단일화 바인딩
+                        story.append(KeepTogether(table_story))
+                        
+                        # [순서 변경 5] 종합 글을 깔끔하게 마지막 단독 페이지로 넘겨 각인시킴
+                        story.append(PageBreak())
+                        story.append(Paragraph(f"<b>📝 {selected_month} 담당 교사 종합 피드백 코멘트</b>", t_style))
+                        story.append(Spacer(1, 10))
+                        
+                        for line in edited_report.split('\n'):
+                            line_clean = line.replace('━━━━━━━━━━━━━━━━━━━━', '--------------------------------------------------')
+                            story.append(Paragraph(line_clean if line_clean.strip() else " ", b_style))
                             
                         doc.build(story)
                         pdf_bytes = pdf_buffer.getvalue()
@@ -809,14 +824,14 @@ with tab2:
 
                     # 다운로드 버튼 매핑
                     st.download_button(
-                        label="📄 모든 시각화 차트 포함 PDF 다운로드",
+                        label="📄 깨짐 없는 종합 학습분석 PDF 다운로드",
                         data=build_full_report_pdf(),
                         file_name=f"{selected_month}_종합_학습분석_리포트.pdf",
                         mime="application/pdf",
                         use_container_width=True
                     )
                 except Exception as ex:
-                    st.error(f"⚠️ 종합 PDF 생성 대기 중... (원인: {str(ex)})")
+                    st.error(f"⚠️ 종합 PDF 최적화 생성 대기 중... (원인: {str(ex)})")
 
 
             # --- 📌 3. 화면 UI 시각화 렌더링 영역 (기존 화면 요소 유지) ---
