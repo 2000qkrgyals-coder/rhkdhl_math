@@ -3,6 +3,7 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime, time as dt_time
 import plotly.express as px
+from reportlab.platypus import HRFlowable
 import json
 import time
 
@@ -811,24 +812,24 @@ with tab2:
                                 Image(io.BytesIO(pdf_hw_bar.to_image(format="png")), width=500, height=220)
                             ])
                         
-                        page1_table = Table(
-                            [
-                                [upper_block],
-                                [lower_block]
-                            ],
-                            colWidths=[520],
-                            rowHeights=[270,270]
+                        for item in upper_block:
+                            story.append(item)
+                        
+                        story.append(Spacer(1, 10))
+                        
+                        divider = HRFlowable(
+                            width="100%",
+                            thickness=1.5,
+                            color=colors.HexColor("#CBD5E1"),
+                            spaceBefore=5,
+                            spaceAfter=10
                         )
                         
-                        page1_table.setStyle(TableStyle([
-                            ('VALIGN',(0,0),(-1,-1),'TOP'),
-                            ('LEFTPADDING',(0,0),(-1,-1),0),
-                            ('RIGHTPADDING',(0,0),(-1,-1),0),
-                            ('TOPPADDING',(0,0),(-1,-1),0),
-                            ('BOTTOMPADDING',(0,0),(-1,-1),0),
-                        ]))
+                        story.append(divider)
                         
-                        story.append(page1_table)
+                        for item in lower_block:
+                            story.append(item)
+                        
                         story.append(PageBreak())
                         
                         # --- PAGE 2: 테스트 관련 그래프 ---
@@ -877,26 +878,25 @@ with tab2:
                                 Image(io.BytesIO(pdf_test_bar.to_image(format="png")), width=500, height=220)
                             ])
                         
-                        page2_table = Table(
-                            [
-                                [upper_block],
-                                [lower_block]
-                            ],
-                            colWidths=[520],
-                            rowHeights=[270,270]
+                        for item in upper_block:
+                            story.append(item)
+                        
+                        story.append(Spacer(1, 10))
+                        
+                        divider = HRFlowable(
+                            width="100%",
+                            thickness=1.5,
+                            color=colors.HexColor("#CBD5E1"),
+                            spaceBefore=5,
+                            spaceAfter=10
                         )
                         
-                        page2_table.setStyle(TableStyle([
-                            ('VALIGN',(0,0),(-1,-1),'TOP'),
-                            ('LEFTPADDING',(0,0),(-1,-1),0),
-                            ('RIGHTPADDING',(0,0),(-1,-1),0),
-                            ('TOPPADDING',(0,0),(-1,-1),0),
-                            ('BOTTOMPADDING',(0,0),(-1,-1),0),
-                        ]))
+                        story.append(divider)
                         
-                        story.append(page2_table)
+                        for item in lower_block:
+                            story.append(item)
+                        
                         story.append(PageBreak())
-                                                
                         # --- PAGE 3: 종합 피드백 ---
                         p3_blocks = []
                         p3_blocks.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서 (3/3)</b>", t_style))
