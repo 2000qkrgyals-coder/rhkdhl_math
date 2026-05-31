@@ -754,7 +754,7 @@ with tab2:
                         
                         story = []
                         
-                        # --- PAGE 1: 숙제 관련 그래프 ---
+                        # --- PAGE 1: 숙제 관련 그래프 (2단 배치) ---
                         p1_blocks = []
                         p1_blocks.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서 (1/3)</b>", t_style))
                         
@@ -763,46 +763,32 @@ with tab2:
                         p1_blocks.append(guide_box)
                         p1_blocks.append(Spacer(1, 10))
                         
-                        # 1. 숙제 이행률
-                        if fig_hw_line:
-                            pdf_hw_line = copy.deepcopy(fig_hw_line)
-                            pdf_hw_line.update_layout(title="Homework Completion Rate Trend (%)", xaxis_title="Session", yaxis_title="Rate (%)", font=dict(family="sans-serif", size=8), margin=dict(t=25, b=25))
-                            p1_blocks.append(Paragraph("<b>[1] 회차별 숙제 이행률 추이 그래프</b>", sub_style))
-                            p1_blocks.append(Image(io.BytesIO(pdf_hw_line.to_image(format="png")), width=480, height=200))
-                        
-                        # 2. 숙제 오답 분석
-                        if fig_hw_bar:
-                            pdf_hw_bar = copy.deepcopy(fig_hw_bar)
-                            pdf_hw_bar.update_layout(title="Homework Error Volume Trend", xaxis_title="Session", yaxis_title="Count", legend_title="Errors", font=dict(family="sans-serif", size=8), margin=dict(t=25, b=25))
+                        if fig_hw_line and fig_hw_bar:
+                            pdf_hw_line = copy.deepcopy(fig_hw_line).update_layout(title="Homework Completion Rate", height=200, width=240, font=dict(size=8), margin=dict(t=30, b=10, l=10, r=10))
+                            pdf_hw_bar = copy.deepcopy(fig_hw_bar).update_layout(title="Homework Error Volume", height=200, width=240, font=dict(size=8), margin=dict(t=30, b=10, l=10, r=10))
                             for trace in pdf_hw_bar.data:
                                 mapping = {'계산실수': 'Calc', '개념부족': 'Concept', '고난도': 'Advanced', '문제이해': 'Logic'}
                                 trace.name = mapping.get(trace.name, trace.name)
-                            p1_blocks.append(Paragraph("<b>[2] 숙제 회차별 오답 원인 분석 그래프</b>", sub_style))
-                            p1_blocks.append(Image(io.BytesIO(pdf_hw_bar.to_image(format="png")), width=480, height=200))
+                            
+                            p1_blocks.append(Paragraph("<b>[1] 및 [2] 숙제 학습 효율 및 오답 원인 분석</b>", sub_style))
+                            p1_blocks.append(Table([[Image(io.BytesIO(pdf_hw_line.to_image(format="png")), 240, 200), Image(io.BytesIO(pdf_hw_bar.to_image(format="png")), 240, 200)]], colWidths=[260, 260]))
                         
                         story.append(KeepTogether(p1_blocks))
                         story.append(PageBreak())
                         
-                        # --- PAGE 2: 테스트 관련 그래프 ---
+                        # --- PAGE 2: 테스트 관련 그래프 (2단 배치) ---
                         p2_blocks = []
                         p2_blocks.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서 (2/3)</b>", t_style))
                         
-                        # 3. 테스트 결과
-                        if fig_test_line:
-                            pdf_test_line = copy.deepcopy(fig_test_line)
-                            pdf_test_line.update_layout(title="Daily Test Score Rate Trend (%)", xaxis_title="Session", yaxis_title="Rate (%)", font=dict(family="sans-serif", size=8), margin=dict(t=25, b=25))
-                            p2_blocks.append(Paragraph("<b>[3] 회차별 데일리 테스트 결과 그래프</b>", sub_style))
-                            p2_blocks.append(Image(io.BytesIO(pdf_test_line.to_image(format="png")), width=480, height=200))
-                            
-                        # 4. 테스트 오답 분석
-                        if fig_test_bar:
-                            pdf_test_bar = copy.deepcopy(fig_test_bar)
-                            pdf_test_bar.update_layout(title="Daily Test Error Volume Trend", xaxis_title="Session", yaxis_title="Count", legend_title="Errors", font=dict(family="sans-serif", size=8), margin=dict(t=25, b=25))
+                        if fig_test_line and fig_test_bar:
+                            pdf_test_line = copy.deepcopy(fig_test_line).update_layout(title="Daily Test Score Rate", height=200, width=240, font=dict(size=8), margin=dict(t=30, b=10, l=10, r=10))
+                            pdf_test_bar = copy.deepcopy(fig_test_bar).update_layout(title="Daily Test Error Volume", height=200, width=240, font=dict(size=8), margin=dict(t=30, b=10, l=10, r=10))
                             for trace in pdf_test_bar.data:
                                 mapping = {'계산실수': 'Calc', '개념부족': 'Concept', '고난도': 'Advanced', '문제이해': 'Logic'}
                                 trace.name = mapping.get(trace.name, trace.name)
-                            p2_blocks.append(Paragraph("<b>[4] 데일리 테스트 오답 회차별 통계 그래프</b>", sub_style))
-                            p2_blocks.append(Image(io.BytesIO(pdf_test_bar.to_image(format="png")), width=480, height=200))
+                                
+                            p2_blocks.append(Paragraph("<b>[3] 및 [4] 데일리 테스트 결과 및 오답 통계</b>", sub_style))
+                            p2_blocks.append(Table([[Image(io.BytesIO(pdf_test_line.to_image(format="png")), 240, 200), Image(io.BytesIO(pdf_test_bar.to_image(format="png")), 240, 200)]], colWidths=[260, 260]))
                             
                         story.append(KeepTogether(p2_blocks))
                         story.append(PageBreak())
@@ -811,25 +797,18 @@ with tab2:
                         p3_blocks = []
                         p3_blocks.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서 (3/3)</b>", t_style))
                         
-                        # 5. 파이 차트 (오답 비중)
                         img_pie_list = []
                         if fig_hw_pie:
-                            pdf_hw_pie = copy.deepcopy(fig_hw_pie)
-                            pdf_hw_pie.update_layout(title="Homework Shares", font=dict(family="sans-serif", size=8.5))
-                            pdf_hw_pie.update_traces(labels=['Calc', 'Concept', 'Advanced', 'Logic'])
+                            pdf_hw_pie = copy.deepcopy(fig_hw_pie).update_layout(title="Homework Shares", font=dict(size=8.5)).update_traces(labels=['Calc', 'Concept', 'Advanced', 'Logic'])
                             img_pie_list.append(Image(io.BytesIO(pdf_hw_pie.to_image(format="png")), width=220, height=180))
                         if fig_test_pie:
-                            pdf_test_pie = copy.deepcopy(fig_test_pie)
-                            pdf_test_pie.update_layout(title="Test Shares", font=dict(family="sans-serif", size=8.5))
-                            pdf_test_pie.update_traces(labels=['Calc', 'Concept', 'Advanced', 'Logic'])
+                            pdf_test_pie = copy.deepcopy(fig_test_pie).update_layout(title="Test Shares", font=dict(size=8.5)).update_traces(labels=['Calc', 'Concept', 'Advanced', 'Logic'])
                             img_pie_list.append(Image(io.BytesIO(pdf_test_pie.to_image(format="png")), width=220, height=180))
-                            
+                                
                         if img_pie_list:
-                            t_charts = Table([img_pie_list], colWidths=[250, 250])
                             p3_blocks.append(Paragraph("<b>[5] 월간 누적 전체 오답 유형 비중 분포</b>", sub_style))
-                            p3_blocks.append(t_charts)
+                            p3_blocks.append(Table([img_pie_list], colWidths=[260, 260]))
                             
-                        # 종합 피드백
                         p3_blocks.append(Spacer(1, 20))
                         p3_blocks.append(Paragraph(f"<b>📝 담당 교사 월간 종합 피드백</b>", t_style))
                         f_body = [Paragraph(line.strip(), b_style) for line in edited_report.split('\n') if line.strip() and not any(x in line for x in ['📊', '📌', '📝', '━━━━━━━━━━━━━━━━━━━━'])]
