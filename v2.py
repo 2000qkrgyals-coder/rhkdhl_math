@@ -794,7 +794,15 @@ with tab2:
                         
                         err_parts = []
                         if row['test_calc'] > 0: err_parts.append(f"계산실수({int(row['test_calc'])})")
-                        if row['test_concept'] > 0: err_parts.append(f"개념부족({int(
+                        if row['test_concept'] > 0: err_parts.append(f"개념부족({int(row['test_concept'])})")
+                        if row['test_hard'] > 0: err_parts.append(f"고난도({int(row['test_hard'])})")
+                        if row['test_under'] > 0: err_parts.append(f"문제이해({int(row['test_under'])})")
+                        
+                        err_text = ", ".join(err_parts) if err_parts else "틀린 문제 없음 (만점! 💯)"
+                        tc_3.markdown(f"🔍 **오답 세부 원인:**\n\n`{err_text}`")
+            else: st.info("💡 이번 달에 진행된 데일리 테스트 기록이 존재하지 않습니다.")
+                
+    else: st.info("📊 학습 분석을 진행할 세션 데이터가 아직 입력되지 않았습니다.")
 
 # --- TAB 3: 교재 관리 ---
 with tab3:
