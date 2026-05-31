@@ -411,19 +411,64 @@ with tab1:
         end_t = c_t2.time_input("종료", def_end_t, key=f"end_t{edit_suffix}")
 
         p_list, h_list = [], []
-        st.write("📖 진도")
-        for i in range(st.session_state.p_rows):
-            cc1, cc2 = st.columns([1, 2])
-            e_p = st.session_state.get(f"edit_p_val_{i}", "")
-            def_pb = e_p.split(":")[0] if ":" in e_p else (s_books[0] if s_books else "미등록")
-            def_pr = e_p.split(":")[1].strip() if ":" in e_p else ""
-            
-            p_idx = s_books.index(def_pb) if def_pb in s_books else 0
-            pb = cc1.selectbox(f"진도 {i+1}", s_books, index=p_idx, key=f"pb_{i}{edit_suffix}")
-            pr = cc2.text_input(f"진도 범위", value=def_pr, key=f"pr_{i}{edit_suffix}")
-            if pb and pr: p_list.append(f"{pb}: {pr}")
         
-        st.write("📝 다음 숙제")
+        # --- 📖 진도 입력 섹션 (숙제 포맷과 동일하게 컴포넌트 분할) ---
+        st.write("### 📖 진도")
+        for i in range(st.session_state.p_rows):
+            st.markdown(f"**📍 진도 {i+1}**")
+            pc1, pc2, pc3, pc4 = st.columns([2, 1, 1, 3])
+            
+            # [수정 모드 데이터 파싱] 기존에 저장된 "교재: p.시작~끝 (비고)" 텍스트 분해 로직
+            e_p = st.session_state.get(f"edit_p_val_{i}", "")
+            if e_p and f"pb_{i}{edit_suffix}" not in st.session_state:
+                pb_init, p_start_init, p_end_init, p_note_init = (s_books[0] if s_books else "미등록"), "", "", ""
+                if ":" in e_p:
+                    pb_init = e_p.split(":")[0].strip()
+                    rem_p = e_p.split(":")[1].strip().replace("p.", "")
+                    if "(" in rem_p:
+                        page_part, note_part = rem_p.split("(", 1)
+                        p_note_init = note_part.replace(")", "").strip()
+                        page_part = page_part.strip()
+                    else:
+                        page_part = rem_p.strip()
+                    
+                    clean_page = page_part.replace("번", "").strip()
+                    if "~" in clean_page:
+                        p_split = clean_page.split("~")
+                        p_start_init, p_end_init = p_split[0].strip(), p_split[1].strip()
+                    else:
+                        if clean_page.isdigit(): p_start_init = clean_page
+                        else: p_note_init = page_part
+                
+                st.session_state[f"pb_{i}{edit_suffix}"] = pb_init
+                st.session_state[f"p_start_{i}{edit_suffix}"] = p_start_init
+                st.session_state[f"p_end_{i}{edit_suffix}"] = p_end_init
+                st.session_state[f"p_note_{i}{edit_suffix}"] = p_note_init
+
+            v_pb = st.session_state.get(f"pb_{i}{edit_suffix}", (s_books[0] if s_books else "미등록"))
+            v_pstart = st.session_state.get(f"p_start_{i}{edit_suffix}", "")
+            v_pend = st.session_state.get(f"p_end_{i}{edit_suffix}", "")
+            v_pnote = st.session_state.get(f"p_note_{i}{edit_suffix}", "")
+
+            p_idx = s_books.index(v_pb) if v_pb in s_books else 0
+            pb = pc1.selectbox(f"교재", s_books, index=p_idx, key=f"pb_{i}{edit_suffix}")
+            p_start = pc2.text_input(f"시작(p)", value=v_pstart, key=f"p_start_{i}{edit_suffix}", placeholder="12")
+            p_end = pc3.text_input(f"끝(p)", value=v_pend, key=f"p_end_{i}{edit_suffix}", placeholder="18")
+            p_note = pc4.text_input(f"비고/코멘트", value=v_pnote, key=f"p_note_{i}{edit_suffix}", placeholder="개념 설명")
+            
+            # 데이터 병합 후 리스트에 추가
+            if pb and (p_start or p_end or p_note):
+                p_prefix = "p." if (p_start.isdigit() or p_end.isdigit()) else ""
+                p_page_str = f"{p_prefix}{p_start}" if p_start else ""
+                if p_end: 
+                    if p_page_str: p_page_str += f"~{p_end}"
+                    else: p_page_str = f"{p_prefix}~{p_end}"
+                    
+                p_note_str = f" ({p_note})" if p_note else ""
+                p_list.append(f"{pb}: {p_page_str}{p_note_str}".strip())
+        
+        # --- 📝 다음 숙제 입력 섹션 ---
+        st.write("### 📝 다음 숙제")
         for i in range(st.session_state.h_rows):
             st.markdown(f"**📍 숙제 {i+1}**")
             hc1, hc2, hc3, hc4 = st.columns([2, 1, 1, 3])
@@ -471,8 +516,6 @@ with tab1:
                 if h_end: 
                     if page_str: page_str += f"~{h_end}"
                     else: page_str = f"{prefix}~{h_end}"
-                
-                # 💡 [교정 완료] 특정 교재(쎈, RPM 등)일 때 자동으로 뒤에 "번"을 붙이던 조건문을 완전히 제거했습니다.
                     
                 note_str = f" ({h_note})" if h_note else ""
                 h_list.append(f"{hb}: {page_str}{note_str}".strip())
