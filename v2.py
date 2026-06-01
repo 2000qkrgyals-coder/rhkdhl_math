@@ -772,59 +772,61 @@ with tab2:
                         story = []
                         
                         # --- PAGE 1: 숙제 관련 그래프 ---
-                        story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 (1/3)</b>", t_style))
-                        
-                        # 1. 그래프 객체 준비
-                        graph_items = []
-                        
-                        if fig_hw_line:
-                            pdf_hw_line = copy.deepcopy(fig_hw_line)
-                            pdf_hw_line.update_layout(
-                                title="회차별 숙제 이행률 (%)",
-                                xaxis_title="회차",
-                                yaxis_title="이행률 (%)",
-                                font=dict(family="NanumGothic", size=10),
-                                margin=dict(t=30, b=30, l=30, r=30)
-                            )
-                            # 이미지 생성
-                            img_line = Image(io.BytesIO(pdf_hw_line.to_image(format="png")), width=240, height=200)
-                            graph_items.append([Paragraph("<b>[1] 회차별 숙제 이행률 추이</b>", sub_style), img_line])
-                        
-                        if fig_hw_bar:
-                            pdf_hw_bar = copy.deepcopy(fig_hw_bar)
-                            pdf_hw_bar.update_layout(
-                                title="회차별 숙제 오답 원인 추이",
-                                xaxis_title="회차",
-                                yaxis_title="개수",
-                                font=dict(family="NanumGothic", size=10),
-                                margin=dict(t=30, b=30, l=30, r=30)
-                            )
-                            # 이미지 생성
-                            img_bar = Image(io.BytesIO(pdf_hw_bar.to_image(format="png")), width=240, height=200)
-                            graph_items.append([Paragraph("<b>[2] 숙제 오답 원인 분석</b>", sub_style), img_bar])
-                        
-                        # 2. 2열 Table로 배치
-                        # graph_items가 [[제목, 이미지], [제목, 이미지]] 형태라면
-                        # 이를 1행 2열로 재구성
-                        if len(graph_items) == 2:
-                            # 1행에는 제목들, 2행에는 이미지들을 배치
-                            data = [
-                                [graph_items[0][0], graph_items[1][0]],
-                                [graph_items[0][1], graph_items[1][1]]
-                            ]
-                            t = Table(data, colWidths=[260, 260])
-                            t.setStyle(TableStyle([
-                                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                                ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
-                            ]))
-                            story.append(t)
-                        else:
-                            # 그래프가 하나일 경우 처리
-                            for item in graph_items:
-                                story.extend(item)
-                        
-                        story.append(PageBreak())
+                        story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 (1/3)</b>", t_style))
+                        
+                        upper_block = []
+                        lower_block = []
+                        
+                        if fig_hw_line:
+                            pdf_hw_line = copy.deepcopy(fig_hw_line)
+                            pdf_hw_line.update_layout(
+                                title="회차별 숙제 이행률 (%)",
+                                xaxis_title="회차",
+                                yaxis_title="이행률 (%)",
+                                font=dict(family="NanumGothic", size=10),
+                                margin=dict(t=25, b=25)
+                            )
+                        
+                            upper_block.extend([
+                                Paragraph("<b>[1] 회차별 숙제 이행률 추이 그래프</b>", sub_style),
+                                Image(io.BytesIO(pdf_hw_line.to_image(format="png")), width=500, height=220)
+                            ])
+                        
+                        if fig_hw_bar:
+                            pdf_hw_bar = copy.deepcopy(fig_hw_bar)
+                            pdf_hw_bar.update_layout(
+                                title="회차별 숙제 오답 원인 추이",
+                                xaxis_title="회차",
+                                yaxis_title="개수",
+                                legend_title="오답원인",
+                                font=dict(family="NanumGothic", size=10),
+                                margin=dict(t=25, b=25)
+                            )
+                        
+                            lower_block.extend([
+                                Paragraph("<b>[2] 숙제 회차별 오답 원인 분석 그래프</b>", sub_style),
+                                Image(io.BytesIO(pdf_hw_bar.to_image(format="png")), width=500, height=220)
+                            ])
+                        
+                        for item in upper_block:
+                            story.append(item)
+                        
+                        story.append(Spacer(1, 10))
+                        
+                        divider = HRFlowable(
+                            width="100%",
+                            thickness=1.5,
+                            color=colors.HexColor("#CBD5E1"),
+                            spaceBefore=5,
+                            spaceAfter=10
+                        )
+                        
+                        story.append(divider)
+                        
+                        for item in lower_block:
+                            story.append(item)
+                        
+                        story.append(PageBreak())
                         
                         # --- PAGE 2: 테스트 관련 그래프 ---
                         story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 (2/3)</b>", t_style))
