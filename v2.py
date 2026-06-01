@@ -771,63 +771,62 @@ with tab2:
                         
                         story = []
                         
-                        # --- PAGE 1: 숙제 관련 그래프 ---
+                       # --- PAGE 1: 숙제 관련 그래프 ---
                         story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 (1/3)</b>", t_style))
-                        
-                        upper_block = []
-                        lower_block = []
-                        
-                        if fig_hw_line:
-                            pdf_hw_line = copy.deepcopy(fig_hw_line)
-                            pdf_hw_line.update_layout(
-                                title="회차별 숙제 이행률 (%)",
-                                xaxis_title="회차",
-                                yaxis_title="이행률 (%)",
-                                font=dict(family="NanumGothic", size=10),
-                                margin=dict(t=25, b=25)
-                            )
-                        
-                            upper_block.extend([
-                                Paragraph("<b>[1] 회차별 숙제 이행률 추이 그래프</b>", sub_style),
-                                Image(io.BytesIO(pdf_hw_line.to_image(format="png")), width=500, height=220)
-                            ])
-                        
-                        if fig_hw_bar:
-                            pdf_hw_bar = copy.deepcopy(fig_hw_bar)
-                            pdf_hw_bar.update_layout(
-                                title="회차별 숙제 오답 원인 추이",
-                                xaxis_title="회차",
-                                yaxis_title="개수",
-                                legend_title="오답원인",
-                                font=dict(family="NanumGothic", size=10),
-                                margin=dict(t=25, b=25)
-                            )
-                        
-                            lower_block.extend([
-                                Paragraph("<b>[2] 숙제 회차별 오답 원인 분석 그래프</b>", sub_style),
-                                Image(io.BytesIO(pdf_hw_bar.to_image(format="png")), width=500, height=220)
-                            ])
-                        
-                        for item in upper_block:
-                            story.append(item)
-                        
-                        story.append(Spacer(1, 10))
-                        
-                        divider = HRFlowable(
-                            width="100%",
-                            thickness=1.5,
-                            color=colors.HexColor("#CBD5E1"),
-                            spaceBefore=5,
-                            spaceAfter=10
-                        )
-                        
-                        story.append(divider)
-                        
-                        for item in lower_block:
-                            story.append(item)
-                        
-                        story.append(PageBreak())
                         
+                        upper_block = []
+                        lower_block = []
+                        
+                        if fig_hw_line:
+                            pdf_hw_line = copy.deepcopy(fig_hw_line)
+                            pdf_hw_line.update_layout(
+                                title="회차별 숙제 이행률 (%)",
+                                xaxis_title="회차",
+                                yaxis_title="이행률 (%)",
+                                font=dict(family="NanumGothic", size=10),
+                                margin=dict(t=25, b=25)
+                            )
+                        
+                            upper_block.extend([
+                                Paragraph("<b>[1] 회차별 숙제 이행률 추이 그래프</b>", sub_style),
+                                Image(io.BytesIO(pdf_hw_line.to_image(format="png")), width=500, height=220)
+                            ])
+                        
+                        if fig_hw_bar:
+                            pdf_hw_bar = copy.deepcopy(fig_hw_bar)
+                            pdf_hw_bar.update_layout(
+                                title="회차별 숙제 오답 원인 추이",
+                                xaxis_title="회차",
+                                yaxis_title="개수",
+                                legend_title="오답원인",
+                                font=dict(family="NanumGothic", size=10),
+                                margin=dict(t=25, b=25)
+                            )
+                        
+                            lower_block.extend([
+                                Paragraph("<b>[2] 숙제 회차별 오답 원인 분석 그래프</b>", sub_style),
+                                Image(io.BytesIO(pdf_hw_bar.to_image(format="png")), width=500, height=220)
+                            ])
+                        
+                        for item in upper_block:
+                            story.append(item)
+                        
+                        story.append(Spacer(1, 10))
+                        
+                        divider = HRFlowable(
+                            width="100%",
+                            thickness=1.5,
+                            color=colors.HexColor("#CBD5E1"),
+                            spaceBefore=5,
+                            spaceAfter=10
+                        )
+                        
+                        story.append(divider)
+                        
+                        for item in lower_block:
+                            story.append(item)
+                        
+                        story.append(PageBreak())
                         # --- PAGE 2: 테스트 관련 그래프 ---
                         story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 (2/3)</b>", t_style))
                         
