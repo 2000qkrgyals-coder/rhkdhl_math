@@ -891,13 +891,13 @@ with tab2:
                         img_pie_list = []
                         if fig_hw_pie:
                             pdf_hw_pie = copy.deepcopy(fig_hw_pie)
-                            pdf_hw_pie.update_layout(title="월간 숙제 오답 분포", font=dict(family="NanumGothic", size=8))
+                            pdf_hw_pie.update_layout(title="월간 숙제 오답 분포", font=dict(family="NanumGothic", size=9))
                             pdf_hw_pie.update_traces(labels=['계산실수', '개념부족', '고난도', '문제이해'])
                             img_pie_list.append(Image(io.BytesIO(pdf_hw_pie.to_image(format="png")), width=220, height=180))
                         
                         if fig_test_pie:
                             pdf_test_pie = copy.deepcopy(fig_test_pie)
-                            pdf_test_pie.update_layout(title="월간 테스트 오답 분포", font=dict(family="NanumGothic", size=10))
+                            pdf_test_pie.update_layout(title="월간 테스트 오답 분포", font=dict(family="NanumGothic", size=9))
                             pdf_test_pie.update_traces(labels=['계산실수', '개념부족', '고난도', '문제이해'])
                             img_pie_list.append(Image(io.BytesIO(pdf_test_pie.to_image(format="png")), width=220, height=180))
                             
