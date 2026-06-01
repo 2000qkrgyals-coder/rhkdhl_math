@@ -790,9 +790,9 @@ with tab2:
                         if fig_hw_line:
                             pdf_hw_line = copy.deepcopy(fig_hw_line)
                             pdf_hw_line.update_layout(
-                                title="Homework Completion Rate Trend (%)",
-                                xaxis_title="Session",
-                                yaxis_title="Rate (%)",
+                                title="회차별 숙제 이행률 (%)",
+                                xaxis_title="회차",
+                                yaxis_title="이행률 (%)",
                                 font=dict(family="NanumGothic", size=10),
                                 margin=dict(t=25, b=25)
                             )
