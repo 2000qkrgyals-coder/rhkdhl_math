@@ -809,7 +809,7 @@ with tab2:
                                 xaxis_title="Session",
                                 yaxis_title="Count",
                                 legend_title="Errors",
-                                font=dict(family="sans-serif", size=8),
+                                font=dict(family="NanumGothic", size=10),
                                 margin=dict(t=25, b=25)
                             )
                         
@@ -859,7 +859,7 @@ with tab2:
                                 title="Daily Test Score Rate Trend (%)",
                                 xaxis_title="Session",
                                 yaxis_title="Rate (%)",
-                                font=dict(family="sans-serif", size=8),
+                                font=dict(family="NanumGothic", size=10),
                                 margin=dict(t=25, b=25)
                             )
                         
@@ -875,7 +875,7 @@ with tab2:
                                 xaxis_title="Session",
                                 yaxis_title="Count",
                                 legend_title="Errors",
-                                font=dict(family="sans-serif", size=8),
+                                font=dict(family="NanumGothic", size=10),
                                 margin=dict(t=25, b=25)
                             )
                         
