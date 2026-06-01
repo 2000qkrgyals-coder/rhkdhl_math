@@ -6,7 +6,18 @@ import plotly.express as px
 from reportlab.platypus import HRFlowable
 import json
 import time
+import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
+import plotly.io as pio
+import os
 
+# 나눔 폰트 경로 찾기
+font_files = fm.findSystemFonts(fontpaths=['/usr/share/fonts/truetype/nanum'])
+for f in font_files:
+    fm.fontManager.addfont(f)
+
+# 폰트 설정 (NanumGothic을 기본으로 설정)
+pio.kaleido.scope.default_font = "NanumGothic"
 # --- [0. 보안 및 기본 설정] ---
 MASTER_PASSWORD = "03241005" 
 
