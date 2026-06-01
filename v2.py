@@ -891,9 +891,10 @@ with tab2:
                         img_pie_list = []
                         if fig_hw_pie:
                             pdf_hw_pie = copy.deepcopy(fig_hw_pie)
-                            pdf_hw_pie.update_layout(title="월간 숙제 오답 분포", font=dict(family="NanumGothic", size=10))
+                            pdf_hw_pie.update_layout(title="월간 숙제 오답 분포", font=dict(family="NanumGothic", size=8))
                             pdf_hw_pie.update_traces(labels=['계산실수', '개념부족', '고난도', '문제이해'])
                             img_pie_list.append(Image(io.BytesIO(pdf_hw_pie.to_image(format="png")), width=220, height=180))
+                        
                         if fig_test_pie:
                             pdf_test_pie = copy.deepcopy(fig_test_pie)
                             pdf_test_pie.update_layout(title="월간 테스트 오답 분포", font=dict(family="NanumGothic", size=10))
@@ -905,23 +906,28 @@ with tab2:
                             p3_blocks.append(Paragraph("<b>[5] 월간 누적 전체 오답 유형 비중 분포</b>", sub_style))
                             p3_blocks.append(t_charts)
                         
+                        # --- 여기에 구분선과 여백 추가 ---
+                        p3_blocks.append(Spacer(1, 20)) # 그래프와 구분선 사이 여백
+                        p3_blocks.append(HRFlowable(
+                            width="100%", thickness=1.5, color=colors.HexColor("#CBD5E1"), 
+                            spaceBefore=10, spaceAfter=10
+                        ))
+                        p3_blocks.append(Spacer(1, 10)) # 구분선과 피드백 사이 여백
+                        
                         # 종합 피드백
-                        p3_blocks.append(Paragraph(f"<b>📝 담당 교사 월간 종합 피드백</b>", t_style))
+                        p3_blocks.append(Paragraph(f"<b>[6] 담당 교사 월간 종합 피드백</b>", t_style))
                         f_body = [Paragraph(line.strip(), b_style) for line in edited_report.split('\n') if line.strip() and not any(x in line for x in ['📊', '📌', '📝', '━━━━━━━━━━━━━━━━━━━━'])]
                         t_feedback = Table([[f_body]], colWidths=[520])
-                        t_feedback.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F8FAFC')), ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#E2E8F0')), ('LINELEFT', (0,0), (-1,-1), 4, colors.HexColor('#1E3A8A')), ('PADDING', (0,0), (-1,-1), 10)]))
+                        t_feedback.setStyle(TableStyle([
+                            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F8FAFC')), 
+                            ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#E2E8F0')), 
+                            ('LINELEFT', (0,0), (0,-1), 4, colors.HexColor('#1E3A8A')), 
+                            ('PADDING', (0,0), (-1,-1), 10)
+                        ]))
                         p3_blocks.append(t_feedback)
                         
                         story.append(KeepTogether(p3_blocks))
-                        story.append(Spacer(1, 75))
                         
-                        divider = HRFlowable(
-                            width="100%",
-                            thickness=1.5,
-                            color=colors.HexColor("#CBD5E1"),
-                            spaceBefore=5,
-                            spaceAfter=10
-                        )
                         doc.build(story)
                         return pdf_buffer.getvalue()
                     # 다운로드 버튼 매핑
