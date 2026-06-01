@@ -634,7 +634,7 @@ with tab2:
             st.markdown("### 🤖 AI 월간 종합 브리핑 룸")
             
             max_hw_err = w_sums.idxmax() if w_sums.sum() > 0 else "none"
-            err_mapping = {'err_calc': '계산 실수', 'err_concept': '개념 이해 부족', 'err_hard': '고난도 문항 진입 장벽', 'err_understand': '문제 문해력(이해) 부족', 'none': '없음'}
+            err_mapping = {'err_calc': '계산 실수', 'err_concept': '개념 이해 부족', 'err_hard': '고난도 문항', 'err_understand': '문제 문해력(이해) 부족', 'none': '없음'}
             main_err_name = err_mapping[max_hw_err]
             
             if avg_hw >= 90:
@@ -759,7 +759,6 @@ with tab2:
                     except KeyError: pdfmetrics.registerFont(TTFont('NanumGothic', io.BytesIO(download_pdf_font())))
 
                     # --- 📄 [프로페셔널 조판] PDF 생성 내부 로직 수정 버전 ---
-                    # --- 📄 [프로페셔널 조판] PDF 생성 내부 로직 수정 버전 ---
                     def build_full_report_pdf():
                         pdf_buffer = io.BytesIO()
                         doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
@@ -773,7 +772,7 @@ with tab2:
                         story = []
                         
                         # --- PAGE 1: 숙제 관련 그래프 ---
-                        story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서 (1/3)</b>", t_style))
+                        story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 (1/3)</b>", t_style))
                         
                         guide_box = Table([[Paragraph("<b>💡 [그래프 용어 가이드]</b> &nbsp;&nbsp; <b>Calc :</b> 계산 실수 &nbsp;|&nbsp; <b>Concept :</b> 개념 부족 &nbsp;|&nbsp; <b>Advanced :</b> 고난도 문항 &nbsp;|&nbsp; <b>Logic :</b> 문제 문해력 및 이해 부족", guide_style)]], colWidths=[520])
                         guide_box.setStyle(TableStyle([
@@ -794,7 +793,7 @@ with tab2:
                                 title="Homework Completion Rate Trend (%)",
                                 xaxis_title="Session",
                                 yaxis_title="Rate (%)",
-                                font=dict(family="sans-serif", size=8),
+                                font=dict(family="NanumGothic", size=10),
                                 margin=dict(t=25, b=25)
                             )
                         
@@ -849,7 +848,7 @@ with tab2:
                         story.append(PageBreak())
                         
                         # --- PAGE 2: 테스트 관련 그래프 ---
-                        story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서 (2/3)</b>", t_style))
+                        story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 (2/3)</b>", t_style))
                         
                         upper_block = []
                         lower_block = []
@@ -915,7 +914,7 @@ with tab2:
                         story.append(PageBreak())
                         # --- PAGE 3: 종합 피드백 ---
                         p3_blocks = []
-                        p3_blocks.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 보고서 (3/3)</b>", t_style))
+                        p3_blocks.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 (3/3)</b>", t_style))
                         
                         # 5. 파이 차트 (오답 비중)
                         img_pie_list = []
