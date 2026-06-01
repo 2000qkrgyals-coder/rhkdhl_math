@@ -634,7 +634,7 @@ with tab2:
             st.markdown("### 🤖 AI 월간 종합 브리핑 룸")
             
             max_hw_err = w_sums.idxmax() if w_sums.sum() > 0 else "none"
-            err_mapping = {'err_calc': '계산 실수', 'err_concept': '개념 이해 부족', 'err_hard': '방법 문항', 'err_understand': '문제 문해력(이해) 부족', 'none': '없음'}
+            err_mapping = {'err_calc': '계산 실수', 'err_concept': '개념 이해 부족', 'err_hard': '방법', 'err_understand': '문제 문해력(이해) 부족', 'none': '없음'}
             main_err_name = err_mapping[max_hw_err]
             
             if avg_hw >= 90:
@@ -1074,7 +1074,7 @@ with tab4:
                 # --- 📱 학부모 전송용 텍스트 자동 생성 로직 --- ⭐
                 # 데일리 테스트 결과 정돈
                 if row.get('test_total', 0) > 0:
-                    test_str = f"✍️ 데일리 테스트: {int(row['test_score'])}문항 / {int(row['test_total'])}문항 만족"
+                    test_str = f"✍️ 데일리 테스트: {int(row['test_score'])}문항 / {int(row['test_total'])}문항"
                 else:
                     test_str = "✍️ 데일리 테스트: 미실시"
                 
