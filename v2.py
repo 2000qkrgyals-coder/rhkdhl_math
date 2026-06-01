@@ -772,7 +772,7 @@ with tab2:
                         story = []
                         
                         # --- PAGE 1: 숙제 관련 그래프 ---
-                        story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 (1/3)</b>", t_style))
+                        story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 (1/3)</b>", t_style))
                         
                         upper_block = []
                         lower_block = []
