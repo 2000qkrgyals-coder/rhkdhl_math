@@ -364,7 +364,7 @@ with tab1:
         wc1, wc2, wc3, wc4 = st.columns(4)
         w_calc = wc1.number_input("계산실수", min_value=0, value=safe_int(st.session_state.get('edit_w_calc', 0)), key=f"w_calc{edit_suffix}")
         w_concept = wc2.number_input("개념부족", min_value=0, value=safe_int(st.session_state.get('edit_w_concept', 0)), key=f"w_concept{edit_suffix}")
-        w_hard = wc3.number_input("고난도", min_value=0, value=safe_int(st.session_state.get('edit_w_hard', 0)), key=f"w_hard{edit_suffix}")
+        w_hard = wc3.number_input("방법", min_value=0, value=safe_int(st.session_state.get('edit_w_hard', 0)), key=f"w_hard{edit_suffix}")
         w_under = wc4.number_input("문제이해", min_value=0, value=safe_int(st.session_state.get('edit_w_under', 0)), key=f"w_under{edit_suffix}")
     else:
         final_rate, w_total, w_calc, w_concept, w_hard, w_under = 100, 0, 0, 0, 0, 0
@@ -393,7 +393,7 @@ with tab1:
         twc1, twc2, twc3, twc4 = st.columns(4)
         t_calc = twc1.number_input("T.계산실수", min_value=0, value=safe_int(st.session_state.get('edit_t_calc', 0)), key=f"t_calc{edit_suffix}")
         t_concept = twc2.number_input("T.개념부족", min_value=0, value=safe_int(st.session_state.get('edit_t_concept', 0)), key=f"t_concept{edit_suffix}")
-        t_hard = twc3.number_input("T.고난도", min_value=0, value=safe_int(st.session_state.get('edit_t_hard', 0)), key=f"t_hard{edit_suffix}")
+        t_hard = twc3.number_input("T.방법", min_value=0, value=safe_int(st.session_state.get('edit_t_hard', 0)), key=f"t_hard{edit_suffix}")
         t_under = twc4.number_input("T.문제이해", min_value=0, value=safe_int(st.session_state.get('edit_t_under', 0)), key=f"t_under{edit_suffix}")
     else:
         t_name, t_total, t_score, t_calc, t_concept, t_hard, t_under = "", 0, 0, 0, 0, 0, 0
@@ -634,7 +634,7 @@ with tab2:
             st.markdown("### 🤖 AI 월간 종합 브리핑 룸")
             
             max_hw_err = w_sums.idxmax() if w_sums.sum() > 0 else "none"
-            err_mapping = {'err_calc': '계산 실수', 'err_concept': '개념 이해 부족', 'err_hard': '고난도 문항', 'err_understand': '문제 문해력(이해) 부족', 'none': '없음'}
+            err_mapping = {'err_calc': '계산 실수', 'err_concept': '개념 이해 부족', 'err_hard': '방법 문항', 'err_understand': '문제 문해력(이해) 부족', 'none': '없음'}
             main_err_name = err_mapping[max_hw_err]
             
             if avg_hw >= 90:
@@ -698,12 +698,12 @@ with tab2:
 
             # --- 📌 2. 그래프 객체 생성 및 폰트 사전 세팅 (화면 브리핑용) ---
             if w_sums.sum() > 0:
-                fig_hw_pie = px.pie(values=w_sums.values, names=['계산실수', '개념부족', '고난도', '문제이해'], hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+                fig_hw_pie = px.pie(values=w_sums.values, names=['계산실수', '개념부족', '방법', '문제이해'], hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
                 fig_hw_pie.update_layout(margin=dict(t=20, b=20, l=10, r=10), width=350, height=300)
             else: fig_hw_pie = None
 
             if t_w_sums.sum() > 0:
-                fig_test_pie = px.pie(values=t_w_sums.values, names=['계산실수', '개념부족', '고난도', '문제이해'], hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe)
+                fig_test_pie = px.pie(values=t_w_sums.values, names=['계산실수', '개념부족', '방법', '문제이해'], hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe)
                 fig_test_pie.update_layout(margin=dict(t=20, b=20, l=10, r=10), width=350, height=300)
             else: fig_test_pie = None
 
@@ -722,7 +722,7 @@ with tab2:
             # 📈 그래프 C: 회차별 숙제 오답 원인 누적 바
             if w_sums.sum() > 0:
                 df_hw_bar = df_filtered.melt(id_vars=['x_axis'], value_vars=['err_calc', 'err_concept', 'err_hard', 'err_understand'], var_name='오답원인', value_name='개수')
-                df_hw_bar['오답원인'] = df_hw_bar['오답원인'].map({'err_calc': '계산실수', 'err_concept': '개념부족', 'err_hard': '고난도', 'err_understand': '문제이해'})
+                df_hw_bar['오답원인'] = df_hw_bar['오답원인'].map({'err_calc': '계산실수', 'err_concept': '개념부족', 'err_hard': '방법', 'err_understand': '문제이해'})
                 fig_hw_bar = px.bar(df_hw_bar, x='x_axis', y='개수', color='오답원인', title="📖 회차별 숙제 오답 원인 추이", color_discrete_sequence=px.colors.qualitative.Pastel)
                 fig_hw_bar.update_layout(xaxis_type='category', width=700, height=320)
             else: fig_hw_bar = None
@@ -730,7 +730,7 @@ with tab2:
             # 📈 그래프 D: 회차별 테스트 오답 원인 누적 바
             if t_w_sums.sum() > 0:
                 df_test_bar = df_filtered.melt(id_vars=['x_axis'], value_vars=['test_calc', 'test_concept', 'test_hard', 'test_under'], var_name='오답원인', value_name='개수')
-                df_test_bar['오답원인'] = df_test_bar['오답원인'].map({'test_calc': '계산실수', 'test_concept': '개념부족', 'test_hard': '고난도', 'test_under': '문제이해'})
+                df_test_bar['오답원인'] = df_test_bar['오답원인'].map({'test_calc': '계산실수', 'test_concept': '개념부족', 'test_hard': '방법', 'test_under': '문제이해'})
                 fig_test_bar = px.bar(df_test_bar, x='x_axis', y='개수', color='오답원인', title="📝 회차별 테스트 오답 원인 추이", color_discrete_sequence=px.colors.qualitative.Safe)
                 fig_test_bar.update_layout(xaxis_type='category', width=700, height=320)
             else: fig_test_bar = None
@@ -892,13 +892,13 @@ with tab2:
                         if fig_hw_pie:
                             pdf_hw_pie = copy.deepcopy(fig_hw_pie)
                             pdf_hw_pie.update_layout(title="월간 숙제 오답 분포", font=dict(family="NanumGothic", size=9))
-                            pdf_hw_pie.update_traces(labels=['계산실수', '개념부족', '고난도', '문제이해'])
+                            pdf_hw_pie.update_traces(labels=['계산실수', '개념부족', '방법', '문제이해'])
                             img_pie_list.append(Image(io.BytesIO(pdf_hw_pie.to_image(format="png")), width=220, height=180))
                         
                         if fig_test_pie:
                             pdf_test_pie = copy.deepcopy(fig_test_pie)
                             pdf_test_pie.update_layout(title="월간 테스트 오답 분포", font=dict(family="NanumGothic", size=9))
-                            pdf_test_pie.update_traces(labels=['계산실수', '개념부족', '고난도', '문제이해'])
+                            pdf_test_pie.update_traces(labels=['계산실수', '개념부족', '방법', '문제이해'])
                             img_pie_list.append(Image(io.BytesIO(pdf_test_pie.to_image(format="png")), width=220, height=180))
                             
                         if img_pie_list:
@@ -1005,7 +1005,7 @@ with tab2:
                         err_parts = []
                         if row['test_calc'] > 0: err_parts.append(f"계산실수({int(row['test_calc'])})")
                         if row['test_concept'] > 0: err_parts.append(f"개념부족({int(row['test_concept'])})")
-                        if row['test_hard'] > 0: err_parts.append(f"고난도({int(row['test_hard'])})")
+                        if row['test_hard'] > 0: err_parts.append(f"방법({int(row['test_hard'])})")
                         if row['test_under'] > 0: err_parts.append(f"문제이해({int(row['test_under'])})")
                         
                         err_text = ", ".join(err_parts) if err_parts else "틀린 문제 없음 (만점! 💯)"
