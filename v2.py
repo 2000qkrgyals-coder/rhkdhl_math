@@ -906,7 +906,6 @@ with tab2:
                             p3_blocks.append(t_charts)
                         
                         # 종합 피드백
-                        story.append(Spacer(1, 20))
                         p3_blocks.append(Paragraph(f"<b>📝 담당 교사 월간 종합 피드백</b>", t_style))
                         f_body = [Paragraph(line.strip(), b_style) for line in edited_report.split('\n') if line.strip() and not any(x in line for x in ['📊', '📌', '📝', '━━━━━━━━━━━━━━━━━━━━'])]
                         t_feedback = Table([[f_body]], colWidths=[520])
@@ -914,7 +913,15 @@ with tab2:
                         p3_blocks.append(t_feedback)
                         
                         story.append(KeepTogether(p3_blocks))
+                        story.append(Spacer(1, 75))
                         
+                        divider = HRFlowable(
+                            width="100%",
+                            thickness=1.5,
+                            color=colors.HexColor("#CBD5E1"),
+                            spaceBefore=5,
+                            spaceAfter=10
+                        )
                         doc.build(story)
                         return pdf_buffer.getvalue()
                     # 다운로드 버튼 매핑
