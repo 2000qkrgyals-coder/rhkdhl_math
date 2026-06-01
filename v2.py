@@ -772,12 +772,11 @@ with tab2:
                         story = []
                         
                        # --- PAGE 1: 숙제 관련 그래프 ---
+                        # --- PAGE 1: 숙제 관련 그래프 ---
                         story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 (1/3)</b>", t_style))
                         
-                        upper_block = []
-                        lower_block = []
-                        
-                        if fig_hw_line:
+                        # 1. 그래프 객체 및 내용 준비
+                        if fig_hw_line and fig_hw_bar:
                             pdf_hw_line = copy.deepcopy(fig_hw_line)
                             pdf_hw_line.update_layout(
                                 title="회차별 숙제 이행률 (%)",
@@ -786,13 +785,7 @@ with tab2:
                                 font=dict(family="NanumGothic", size=10),
                                 margin=dict(t=25, b=25)
                             )
-                        
-                            upper_block.extend([
-                                Paragraph("<b>[1] 회차별 숙제 이행률 추이 그래프</b>", sub_style),
-                                Image(io.BytesIO(pdf_hw_line.to_image(format="png")), width=500, height=220)
-                            ])
-                        
-                        if fig_hw_bar:
+                            
                             pdf_hw_bar = copy.deepcopy(fig_hw_bar)
                             pdf_hw_bar.update_layout(
                                 title="회차별 숙제 오답 원인 추이",
@@ -803,28 +796,27 @@ with tab2:
                                 margin=dict(t=25, b=25)
                             )
                         
-                            lower_block.extend([
-                                Paragraph("<b>[2] 숙제 회차별 오답 원인 분석 그래프</b>", sub_style),
-                                Image(io.BytesIO(pdf_hw_bar.to_image(format="png")), width=500, height=220)
-                            ])
+                            # 2. 데이터를 테이블로 구성 (제목/그래프/구분선/제목/그래프 배치)
+                            data = [
+                                [Paragraph("<b>[1] 회차별 숙제 이행률 추이 그래프</b>", sub_style)],
+                                [Image(io.BytesIO(pdf_hw_line.to_image(format="png")), width=500, height=200)],
+                                [HRFlowable(width="100%", thickness=1, color=colors.HexColor("#CBD5E1"))],
+                                [Paragraph("<b>[2] 숙제 회차별 오답 원인 분석 그래프</b>", sub_style)],
+                                [Image(io.BytesIO(pdf_hw_bar.to_image(format="png")), width=500, height=200)]
+                            ]
                         
-                        for item in upper_block:
-                            story.append(item)
+                            # 3. rowHeights를 설정하여 페이지 높이를 강제 배분 (단위: 포인트)
+                            # 합계가 페이지 높이(약 600~700)에 근접하도록 설정
+                            # 위에서부터 [제목높이, 그래프높이, 구분선여백, 제목높이, 그래프높이]
+                            t = Table(data, colWidths=[500], rowHeights=[30, 210, 40, 30, 210])
+                            
+                            t.setStyle(TableStyle([
+                                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+                            ]))
                         
-                        story.append(Spacer(1, 10))
-                        
-                        divider = HRFlowable(
-                            width="100%",
-                            thickness=1.5,
-                            color=colors.HexColor("#CBD5E1"),
-                            spaceBefore=5,
-                            spaceAfter=10
-                        )
-                        
-                        story.append(divider)
-                        
-                        for item in lower_block:
-                            story.append(item)
+                            story.append(t)
                         
                         story.append(PageBreak())
                         # --- PAGE 2: 테스트 관련 그래프 ---
