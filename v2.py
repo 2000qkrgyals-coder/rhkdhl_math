@@ -11,6 +11,11 @@ import matplotlib.font_manager as fm
 import plotly.io as pio
 import os
 
+# 리눅스 시스템 내 나눔 폰트 경로를 강제로 매니저에 등록
+font_path = '/usr/share/fonts/truetype/nanum/NanumGothic.ttf'
+if fm.findfont(fm.FontProperties(fname=font_path)):
+    pio.kaleido.scope.default_font = "NanumGothic"
+
 # 나눔 폰트 경로 찾기
 font_files = fm.findSystemFonts(fontpaths=['/usr/share/fonts/truetype/nanum'])
 for f in font_files:
