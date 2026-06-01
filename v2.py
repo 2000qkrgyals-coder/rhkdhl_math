@@ -847,9 +847,9 @@ with tab2:
                         if fig_test_line:
                             pdf_test_line = copy.deepcopy(fig_test_line)
                             pdf_test_line.update_layout(
-                                title="Daily Test Score Rate Trend (%)",
-                                xaxis_title="Session",
-                                yaxis_title="Rate (%)",
+                                title="회차별 데일리 테스트 정답률 추이 (%)",
+                                xaxis_title="회차",
+                                yaxis_title="정답률 (%)",
                                 font=dict(family="NanumGothic", size=10),
                                 margin=dict(t=25, b=25)
                             )
@@ -862,22 +862,13 @@ with tab2:
                         if fig_test_bar:
                             pdf_test_bar = copy.deepcopy(fig_test_bar)
                             pdf_test_bar.update_layout(
-                                title="Daily Test Error Volume Trend",
-                                xaxis_title="Session",
-                                yaxis_title="Count",
-                                legend_title="Errors",
+                                title="회차별 테스트 오답 원인 추이",
+                                xaxis_title="회차",
+                                yaxis_title="개수",
+                                legend_title="오답원인",
                                 font=dict(family="NanumGothic", size=10),
                                 margin=dict(t=25, b=25)
                             )
-                        
-                            for trace in pdf_test_bar.data:
-                                mapping = {
-                                    '계산실수':'Calc',
-                                    '개념부족':'Concept',
-                                    '고난도':'Advanced',
-                                    '문제이해':'Logic'
-                                }
-                                trace.name = mapping.get(trace.name, trace.name)
                         
                             lower_block.extend([
                                 Paragraph("<b>[4] 데일리 테스트 오답 회차별 통계 그래프</b>", sub_style),
@@ -911,13 +902,13 @@ with tab2:
                         img_pie_list = []
                         if fig_hw_pie:
                             pdf_hw_pie = copy.deepcopy(fig_hw_pie)
-                            pdf_hw_pie.update_layout(title="Homework Shares", font=dict(family="sans-serif", size=8.5))
-                            pdf_hw_pie.update_traces(labels=['Calc', 'Concept', 'Advanced', 'Logic'])
+                            pdf_hw_pie.update_layout(title="월간 숙제 오답 분포", font=dict(family="NanumGothic", size=10))
+                            pdf_hw_pie.update_traces(labels=['계산실수', '개념부족', '고난도', '문제이해'])
                             img_pie_list.append(Image(io.BytesIO(pdf_hw_pie.to_image(format="png")), width=220, height=180))
                         if fig_test_pie:
                             pdf_test_pie = copy.deepcopy(fig_test_pie)
-                            pdf_test_pie.update_layout(title="Test Shares", font=dict(family="sans-serif", size=8.5))
-                            pdf_test_pie.update_traces(labels=['Calc', 'Concept', 'Advanced', 'Logic'])
+                            pdf_test_pie.update_layout(title="월간 테스트 오답 분포", font=dict(family="NanumGothic", size=10))
+                            pdf_test_pie.update_traces(labels=['계산실수', '개념부족', '고난도', '문제이해'])
                             img_pie_list.append(Image(io.BytesIO(pdf_test_pie.to_image(format="png")), width=220, height=180))
                             
                         if img_pie_list:
