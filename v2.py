@@ -659,7 +659,7 @@ with tab2:
             # 알림톡 텍스트 조립
             report_text = f"""[📊 {selected_month} 월간 학습 성적표 안내]
 
-안녕하세요 학부모님, 수학 담당 교사입니다. 
+안녕하세요 학부모님, 수학 과외 선생님입니다. 
 이번 달 진행된 종합 학습 통계 및 분석 리포트를 보내드립니다.
 
 ━━━━━━━━━━━━━━━━━━━━
@@ -773,16 +773,6 @@ with tab2:
                         
                         # --- PAGE 1: 숙제 관련 그래프 ---
                         story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 (1/3)</b>", t_style))
-                        
-                        guide_box = Table([[Paragraph("<b>💡 [그래프 용어 가이드]</b> &nbsp;&nbsp; <b>Calc :</b> 계산 실수 &nbsp;|&nbsp; <b>Concept :</b> 개념 부족 &nbsp;|&nbsp; <b>Advanced :</b> 고난도 문항 &nbsp;|&nbsp; <b>Logic :</b> 문제 문해력 및 이해 부족", guide_style)]], colWidths=[520])
-                        guide_box.setStyle(TableStyle([
-                            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#EFF6FF')),
-                            ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#BFDBFE')),
-                            ('PADDING', (0,0), (-1,-1), 6),
-                            ('ALIGN', (0,0), (-1,-1), 'CENTER')
-                        ]))
-                        story.append(guide_box)
-                        story.append(Spacer(1,3))
                         
                         upper_block = []
                         lower_block = []
