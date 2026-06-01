@@ -811,7 +811,7 @@ with tab2:
                         for item in upper_block:
                             story.append(item)
                         
-                        story.append(Spacer(1, 10))
+                        story.append(Spacer(1, 150))
                         
                         divider = HRFlowable(
                             width="100%",
