@@ -805,22 +805,13 @@ with tab2:
                         if fig_hw_bar:
                             pdf_hw_bar = copy.deepcopy(fig_hw_bar)
                             pdf_hw_bar.update_layout(
-                                title="Homework Error Volume Trend",
-                                xaxis_title="Session",
-                                yaxis_title="Count",
-                                legend_title="Errors",
+                                title="회차별 숙제 오답 원인 추이",
+                                xaxis_title="회차",
+                                yaxis_title="개수",
+                                legend_title="오답원인",
                                 font=dict(family="NanumGothic", size=10),
                                 margin=dict(t=25, b=25)
                             )
-                        
-                            for trace in pdf_hw_bar.data:
-                                mapping = {
-                                    '계산실수':'Calc',
-                                    '개념부족':'Concept',
-                                    '고난도':'Advanced',
-                                    '문제이해':'Logic'
-                                }
-                                trace.name = mapping.get(trace.name, trace.name)
                         
                             lower_block.extend([
                                 Paragraph("<b>[2] 숙제 회차별 오답 원인 분석 그래프</b>", sub_style),
