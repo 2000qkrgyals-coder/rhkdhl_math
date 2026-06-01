@@ -811,7 +811,7 @@ with tab2:
                         for item in upper_block:
                             story.append(item)
                         
-                        story.append(Spacer(1, 150))
+                        story.append(Spacer(1, 75))
                         
                         divider = HRFlowable(
                             width="100%",
@@ -867,7 +867,7 @@ with tab2:
                         for item in upper_block:
                             story.append(item)
                         
-                        story.append(Spacer(1, 10))
+                        story.append(Spacer(1, 75))
                         
                         divider = HRFlowable(
                             width="100%",
@@ -904,7 +904,17 @@ with tab2:
                             t_charts = Table([img_pie_list], colWidths=[250, 250])
                             p3_blocks.append(Paragraph("<b>[5] 월간 누적 전체 오답 유형 비중 분포</b>", sub_style))
                             p3_blocks.append(t_charts)
-                            
+
+                        story.append(Spacer(1, 75))
+                        
+                        divider = HRFlowable(
+                            width="100%",
+                            thickness=1.5,
+                            color=colors.HexColor("#CBD5E1"),
+                            spaceBefore=5,
+                            spaceAfter=10
+                        )
+                        
                         # 종합 피드백
                         p3_blocks.append(Spacer(1, 20))
                         p3_blocks.append(Paragraph(f"<b>📝 담당 교사 월간 종합 피드백</b>", t_style))
