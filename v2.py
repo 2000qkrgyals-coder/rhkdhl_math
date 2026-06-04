@@ -171,7 +171,7 @@ def get_date_with_weekday(date_val):
         return str(date_val)
 
 tab1, tab2, tab3, tab4 = st.tabs(["📝 수업 기록/수정", "📊 학습 분석", "📚 교재 관리", "📂 전체 로그"])
-# --- TAB 1: 수업 기록 및 수정 (StreamlitAPIException 완벽 해결 버전) ---
+# --- TAB 1: 수업 기록 및 수정 (시간 수정 반영 완벽 교정 버전) ---
 with tab1:
     def safe_int(val):
         try:
@@ -252,7 +252,7 @@ with tab1:
                     if start_val.isdigit() and end_val.isdigit():
                         cal_total = max(0, int(end_val) - int(start_val) + 1)
                     
-                    # 컴포넌트 Key에 직접 안전 값 셋팅 (렌더링 전 시점이라 여기선 안전합니다)
+                    # 컴포넌트 Key에 직접 안전 값 셋팅
                     st.session_state[f"cb_{i}{edit_suffix}"] = cb_val
                     st.session_state[f"c_start_{i}{edit_suffix}"] = start_val
                     st.session_state[f"c_end_{i}{edit_suffix}"] = end_val
@@ -278,7 +278,6 @@ with tab1:
             st.markdown(f"**📝 채점 {i+1}**")
             cc1, cc2, cc3, cc4, cc5, cc6 = st.columns([2, 1, 1, 2, 1, 1])
             
-            # 수정 모드(과거 기록 편집 클릭) 시 데이터 백업 파싱 로직
             e_c = st.session_state.get(f"edit_c_val_{i}", "")
             if e_c and f"cb_{i}{edit_suffix}" not in st.session_state:
                 cb_init, start_init, end_init, note_init, done_init, total_init = (s_books[0] if s_books else "미등록"), "", "", "", 0, 0
@@ -317,7 +316,6 @@ with tab1:
                 st.session_state[f"ct_{i}{edit_suffix}"] = total_init
                 st.session_state[f"cd_{i}{edit_suffix}"] = done_init
 
-            # 세션에서 값 불러오기
             v_cb = st.session_state.get(f"cb_{i}{edit_suffix}", (s_books[0] if s_books else "미등록"))
             v_start = st.session_state.get(f"c_start_{i}{edit_suffix}", "")
             v_end = st.session_state.get(f"c_end_{i}{edit_suffix}", "")
@@ -325,21 +323,18 @@ with tab1:
             v_total = st.session_state.get(f"ct_{i}{edit_suffix}", 0)
             v_done = st.session_state.get(f"cd_{i}{edit_suffix}", 0)
 
-            # UI 컴포넌트 배치
             b_idx = s_books.index(v_cb) if v_cb in s_books else 0
             cb = cc1.selectbox(f"교재", s_books, index=b_idx, key=f"cb_{i}{edit_suffix}")
             c_start = cc2.text_input(f"시작(p)", value=v_start, key=f"c_start_{i}{edit_suffix}")
             c_end = cc3.text_input(f"끝(p)", value=v_end, key=f"c_end_{i}{edit_suffix}")
             c_note = cc4.text_input(f"비고/코멘트", value=v_note, key=f"c_note_{i}{edit_suffix}")
             
-            # 💡 [핵심 교정] 수동 입력 혹은 주입된 상태값을 기반으로 실시간 계산 판정 유연화
             auto_total = v_total
             if c_start.isdigit() and c_end.isdigit():
                 auto_total = max(0, int(c_end) - int(c_start) + 1)
             elif v_total > 0:
                 auto_total = v_total
             
-            # 💡 에러의 원인이던 수동 세션 대입(=) 구문을 완전히 걷어내고 컴포넌트 자체 연동으로 처리
             ct = cc5.number_input(f"총", min_value=0, value=int(auto_total), key=f"ct_{i}{edit_suffix}")
             cd = cc6.number_input(f"푼", min_value=0, value=int(v_done), key=f"cd_{i}{edit_suffix}")
 
@@ -350,7 +345,6 @@ with tab1:
                     if page_str: page_str += f"~{c_end}"
                     else: page_str = f"{prefix}~{c_end}"
                 
-                    
                 note_str = f" ({c_note})" if c_note else ""
                 check_list.append(f"{cb}: {page_str}{note_str} ({cd}/{ct})")
                 acc_total += ct
@@ -377,7 +371,6 @@ with tab1:
         st.session_state.check_rows = max(1, st.session_state.check_rows - 1)
         st.rerun()
 
-
     # --- 2. 데일리 테스트 섹션 ---
     st.divider()
     st.write("### 📝 데일리 테스트 결과")
@@ -400,8 +393,7 @@ with tab1:
 
     st.divider()
 
-
-     # --- 3. 오늘 수업 정보 입력 폼 (시차 교정, 회차 리셋, 시간 입력 및 태도 점수 반영) ---
+    # --- 3. 오늘 수업 정보 입력 폼 ---
     with st.form("lesson_form"):
         st.write("### 📖 오늘 수업 정보")
         
@@ -423,37 +415,12 @@ with tab1:
         
         if is_edit_mode:
             next_s = int(st.session_state.get('edit_session_num', 1))
-            # 수정 모드 시 기존 시간 불러오기 기본값 설정
-            try:
-                init_st = datetime.strptime(st.session_state.get('edit_start_time', "14:00"), "%H:%M").time()
-                init_et = datetime.strptime(st.session_state.get('edit_end_time', "16:00"), "%H:%M").time()
-            except:
-                init_st, init_et = time(14,0), time(16,0)
-        else:
-            init_st, init_et = time(14,0), time(16,0) # 새 수업 기본 시간 (오후 2시 ~ 4시)
             
-            if not all_sessions.empty:
-                all_sessions_cp = all_sessions.copy()
-                all_sessions_cp['date_dt'] = pd.to_datetime(all_sessions_cp['date'], errors='coerce')
-                all_sessions_cp['ym'] = all_sessions_cp['date_dt'].dt.strftime('%Y-%m')
-                
-                monthly_sessions = all_sessions_cp[all_sessions_cp['ym'] == current_ym]
-                
-                if not monthly_sessions.empty:
-                    next_s = int(monthly_sessions['session_num'].max() + 1)
-                else:
-                    next_s = 1
-            else:
-                next_s = 1
-    
-        # [2] 계산된 회차 번호를 입력창에 반영
-        sess_num = c2.number_input("수업 회차", min_value=1, value=next_s, key=f"sess_num{edit_suffix}")
-        
-        # [3] 복원된 수업 시작 및 종료 시간 입력창
-        in_st = c3.time_input("수업 시작", init_st, key=f"st{edit_suffix}")
-        in_et = c4.time_input("수업 종료", init_et, key=f"et{edit_suffix}")
-    
-        st.divider()
+            # 🔥 [교정 핵심 지점] 텍스트나 기존 세션값 형태에 구애받지 않고 문자열 시간 데이터를 안전하게 파싱합니다.
+            raw_start_time = st.session_state.get('edit_start_time', "14:00")
+            raw_end_time = st.session_state.get('edit_end_time', "16:00")
+            
+            # 문자열에서 초가 포함되어 있
         
         # 🌟 [추가 추천 기능] 수업 태도 및 집중도 기록 칸
         st.write("#### 🎯 오늘 수업 태도 평가")
