@@ -405,46 +405,28 @@ with tab1:
     with st.form("lesson_form"):
         st.write("### 📖 오늘 수업 정보")
         c_d, c_n = st.columns(2)
-        
-        # ⏰ [시차 교정] 서버의 세계 표준시(UTC)를 한국 표준시(KST)로 변환 (+9시간)
-        # 6월 1일 오전인데 5월 31일로 뜨는 현상을 완벽하게 해결합니다.
-        import datetime as dt
-        from datetime import datetime, timedelta
-        
-        now_kst = datetime.utcnow() + timedelta(hours=9)
-        
-        # 날짜 기본값 설정 (수정 모드면 기존 날짜, 새 글이면 정확한 오늘 한국 날짜)
-        d_val = datetime.strptime(st.session_state.edit_date, "%Y-%m-%d") if is_edit_mode else now_kst.date()
+        d_val = datetime.strptime(st.session_state.edit_date, "%Y-%m-%d") if is_edit_mode else datetime.now()
         date_in = c_d.date_input("날짜", d_val, key=f"date_in{edit_suffix}")
+        next_s = int(all_sessions['session_num'].max() + 1) if not all_sessions.empty else 1
+        sess_num = c_n.number_input("회차", value=int(st.session_state.get('edit_session_num', next_s)), key=f"sess_num{edit_suffix}")
         
-        # 🔢 [월별 회차 자동 리셋 로직] 
-        # 선택된 혹은 입력된 날짜의 '연도-월'을 추출합니다 (ex: "2026-06")
-        current_ym = date_in.strftime('%Y-%m')
+        c_t1, c_t2 = st.columns(2)
+        def_start_t = dt_time(14, 0)
+        def_end_t = dt_time(16, 0)
         
         if is_edit_mode:
-            # 수정 모드일 때는 기존에 저장했던 회차 번호를 그대로 유지
-            next_s = int(st.session_state.get('edit_session_num', 1))
-        else:
-            if not all_sessions.empty:
-                # 1. 전체 데이터의 날짜 컬럼을 시계열로 변환 후 연-월 문자열 생성
-                all_sessions_cp = all_sessions.copy()
-                all_sessions_cp['date_dt'] = pd.to_datetime(all_sessions_cp['date'], errors='coerce')
-                all_sessions_cp['ym'] = all_sessions_cp['date_dt'].dt.strftime('%Y-%m')
-                
-                # 2. 이번 달(현재 입력 폼의 월)에 해당하는 기존 수업 데이터만 필터링
-                monthly_sessions = all_sessions_cp[all_sessions_cp['ym'] == current_ym]
-                
-                if not monthly_sessions.empty:
-                    # 이번 달에 이미 수업 기록이 있다면: 최대 회차 + 1
-                    next_s = int(monthly_sessions['session_num'].max() + 1)
-                else:
-                    # 새로운 달의 첫 수업이라면: 1회차로 산뜻하게 리셋!
-                    next_s = 1
-            else:
-                next_s = 1
+            try:
+                s_raw = str(st.session_state.get('edit_start_time', "14:00")).strip()
+                e_raw = str(st.session_state.get('edit_end_time', "16:00")).strip()
+                s_parts = s_raw.split(":")
+                e_parts = e_raw.split(":")
+                if len(s_parts) >= 2: def_start_t = dt_time(int(s_parts[0]), int(s_parts[1]))
+                if len(e_parts) >= 2: def_end_t = dt_time(int(e_parts[0]), int(e_parts[1]))
+            except: pass
 
-        # 계산된 회차 번호를 입력창에 반영
-        sess_num = c_n.number_input("회차", value=next_s, key=f"sess_num{edit_suffix}")
+        start_t = c_t1.time_input("시작", def_start_t, key=f"start_t{edit_suffix}")
+        end_t = c_t2.time_input("종료", def_end_t, key=f"end_t{edit_suffix}")
+
         p_list, h_list = [], []
         
         # --- 📖 진도 입력 섹션 (숙제 포맷과 동일하게 컴포넌트 분할) ---
