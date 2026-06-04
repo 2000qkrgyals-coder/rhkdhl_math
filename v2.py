@@ -608,7 +608,6 @@ with tab1:
             
             save_data(pd.concat([df_se, pd.DataFrame([new_row])], ignore_index=True), "sessions")
             st.success("저장되었습니다!")
-            time.success_sleep = True  # 안전 지연 전처리 대신 time 모듈 호환성 보장
             time.sleep(1)
             full_reset()
 
