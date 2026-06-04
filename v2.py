@@ -171,7 +171,7 @@ def get_date_with_weekday(date_val):
         return str(date_val)
 
 tab1, tab2, tab3, tab4 = st.tabs(["📝 수업 기록/수정", "📊 학습 분석", "📚 교재 관리", "📂 전체 로그"])
-# --- TAB 1: 수업 기록 및 수정 (시간 수정 반영 완벽 교정 버전) ---
+# --- TAB 1: 수업 기록 및 수정 (모든 입력창 및 저장 버튼 완벽 통합 버전) ---
 with tab1:
     def safe_int(val):
         try:
@@ -252,7 +252,6 @@ with tab1:
                     if start_val.isdigit() and end_val.isdigit():
                         cal_total = max(0, int(end_val) - int(start_val) + 1)
                     
-                    # 컴포넌트 Key에 직접 안전 값 셋팅
                     st.session_state[f"cb_{i}{edit_suffix}"] = cb_val
                     st.session_state[f"c_start_{i}{edit_suffix}"] = start_val
                     st.session_state[f"c_end_{i}{edit_suffix}"] = end_val
@@ -384,7 +383,7 @@ with tab1:
         t_score = tc3.number_input("T.맞은 개수", min_value=0, value=safe_int(st.session_state.get('edit_test_score', 0)), key=f"t_score{edit_suffix}")
         st.write("❌ 테스트 오답 분석")
         twc1, twc2, twc3, twc4 = st.columns(4)
-        t_calc = twc1.number_input("T.계산실수", min_value=0, value=safe_int(st.session_state.get('edit_t_calc', 0)), key=f"t_calc{edit_suffix}")
+        t_calc = twc1.number_input("T.계산실수", min_value=0, value=safe_int(st.session_value.get('edit_t_calc', 0)), key=f"t_calc{edit_suffix}")
         t_concept = twc2.number_input("T.개념부족", min_value=0, value=safe_int(st.session_state.get('edit_t_concept', 0)), key=f"t_concept{edit_suffix}")
         t_hard = twc3.number_input("T.방법", min_value=0, value=safe_int(st.session_state.get('edit_t_hard', 0)), key=f"t_hard{edit_suffix}")
         t_under = twc4.number_input("T.문제이해", min_value=0, value=safe_int(st.session_state.get('edit_t_under', 0)), key=f"t_under{edit_suffix}")
@@ -393,44 +392,68 @@ with tab1:
 
     st.divider()
 
-    # --- 3. 오늘 수업 정보 입력 폼 ---
+    # --- 3. 오늘 수업 정보 입력 폼 (모든 시간 및 하부 컴포넌트 최종 통합) ---
     with st.form("lesson_form"):
         st.write("### 📖 오늘 수업 정보")
         
-        # ⏰ [시차 교정] 서버의 세계 표준시(UTC)를 한국 표준시(KST)로 변환 (+9시간)
         import datetime as dt
         from datetime import datetime, timedelta, time
         
         now_kst = datetime.utcnow() + timedelta(hours=9)
         
-        # 4개의 컬럼으로 레이아웃 복원 (날짜, 회차, 시작시간, 종료시간)
+        # ⏰ [선생님이 찾으시던 핵심 4칸 레이아웃] 복원 완료!
         c1, c2, c3, c4 = st.columns(4)
         
-        # [1] 날짜 기본값 설정
         d_val = datetime.strptime(st.session_state.edit_date, "%Y-%m-%d") if is_edit_mode else now_kst.date()
         date_in = c1.date_input("수업 날짜", d_val, key=f"date_in{edit_suffix}")
         
-        # 🔢 [월별 회차 자동 리셋 로직] 
         current_ym = date_in.strftime('%Y-%m')
         
         if is_edit_mode:
             next_s = int(st.session_state.get('edit_session_num', 1))
-            
-            # 🔥 [교정 핵심 지점] 텍스트나 기존 세션값 형태에 구애받지 않고 문자열 시간 데이터를 안전하게 파싱합니다.
             raw_start_time = st.session_state.get('edit_start_time', "14:00")
             raw_end_time = st.session_state.get('edit_end_time', "16:00")
             
-            # 문자열에서 초가 포함되어 있
+            try:
+                if isinstance(raw_start_time, str): init_st = datetime.strptime(raw_start_time[:5], "%H:%M").time()
+                else: init_st = raw_start_time
+                if isinstance(raw_end_time, str): init_et = datetime.strptime(raw_end_time[:5], "%H:%M").time()
+                else: init_et = raw_end_time
+            except:
+                init_st, init_et = time(14,0), time(16,0)
+        else:
+            init_st, init_et = time(14,0), time(16,0)
+            if not all_sessions.empty:
+                all_sessions_cp = all_sessions.copy()
+                all_sessions_cp['date_dt'] = pd.to_datetime(all_sessions_cp['date'], errors='coerce')
+                all_sessions_cp['ym'] = all_sessions_cp['date_dt'].dt.strftime('%Y-%m')
+                monthly_sessions = all_sessions_cp[all_sessions_cp['ym'] == current_ym]
+                next_s = int(monthly_sessions['session_num'].max() + 1) if not monthly_sessions.empty else 1
+            else:
+                next_s = 1
+
+        sess_num = c2.number_input("수업 회차", min_value=1, value=next_s, key=f"sess_num{edit_suffix}")
+        in_st = c3.time_input("수업 시작", init_st, key=f"st{edit_suffix}")
+        in_et = c4.time_input("수업 종료", init_et, key=f"et{edit_suffix}")
         
-        # 🌟 [추가 추천 기능] 수업 태도 및 집중도 기록 칸
+        st.divider()
+        
+        # 🌟 수업 태도 평가 요소 배치
         st.write("#### 🎯 오늘 수업 태도 평가")
         tc1, tc2 = st.columns(2)
+        edit_att = st.session_state.get('edit_attitude', "⭐⭐⭐⭐ (집중 잘함)") if is_edit_mode else "⭐⭐⭐⭐ (집중 잘함)"
+        edit_und = st.session_state.get('edit_understanding', "⭐⭐⭐⭐ (대부분 이해)") if is_edit_mode else "⭐⭐⭐⭐ (대부분 이해)"
         
-        # 학부모님께 직관적으로 전달하기 좋은 별점 5점 만점 형태
-        attitude_score = tc1.selectbox("🧠 수업 집중도", ["⭐⭐⭐⭐⭐ (매우 훌륭함)", "⭐⭐⭐⭐ (집중 잘함)", "⭐⭐⭐ (보통)", "⭐⭐ (산만함)", "⭐ (경고 필요)"], index=1, key=f"att_{edit_suffix}")
-        understanding_score = tc2.selectbox("💡 개념 이해도", ["⭐⭐⭐⭐⭐ (완벽히 이해)", "⭐⭐⭐⭐ (대부분 이해)", "⭐⭐⭐ (보통)", "⭐⭐ (어려워함)", "⭐ (복습 필수)"], index=1, key=f"und_{edit_suffix}")
+        # 기본값 매핑용 인덱스 방어 코드
+        att_opts = ["⭐⭐⭐⭐⭐ (매우 훌륭함)", "⭐⭐⭐⭐ (집중 잘함)", "⭐⭐⭐ (보통)", "⭐⭐ (산만함)", "⭐ (경고 필요)"]
+        und_opts = ["⭐⭐⭐⭐⭐ (완벽히 이해)", "⭐⭐⭐⭐ (대부분 이해)", "⭐⭐⭐ (보통)", "⭐⭐ (어려워함)", "⭐ (복습 필수)"]
+        att_idx = att_opts.index(edit_att) if edit_att in att_opts else 1
+        und_idx = und_opts.index(edit_und) if edit_und in und_opts else 1
+
+        attitude_score = tc1.selectbox("🧠 수업 집중도", att_opts, index=att_idx, key=f"att_{edit_suffix}")
+        understanding_score = tc2.selectbox("💡 개념 이해도", und_opts, index=und_idx, key=f"und_{edit_suffix}")
         
-        p_list, h_list = [], []
+        st.divider()
             
         # --- 📖 진도 입력 섹션 (숙제 포맷과 동일하게 컴포넌트 분할) ---
         st.write("### 📖 진도")
