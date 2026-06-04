@@ -402,6 +402,7 @@ with tab1:
 
 
   # --- 3. 오늘 수업 정보 입력 폼 (시차 교정, 월별 회차 리셋 및 시간 반영 버전) ---
+    with st.form("lesson_form"):
         st.write("### 📖 오늘 수업 정보")
         
         # ⏰ [시차 교정] 서버의 세계 표준시(UTC)를 한국 표준시(KST)로 변환 (+9시간)
@@ -448,7 +449,7 @@ with tab1:
                     next_s = 1
             else:
                 next_s = 1
-
+    
         # [2] 각각의 컬럼에 순서대로 컴포넌트 매핑
         sess_num = c2.number_input("회차", value=next_s, key=f"sess_num{edit_suffix}")
         in_st = c3.time_input("수업 시작", init_st, key=f"st{edit_suffix}")
