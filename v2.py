@@ -401,52 +401,70 @@ with tab1:
     st.divider()
 
 
-  # --- 3. 오늘 수업 정보 입력 폼 (시차 교정 및 월별 회차 리셋 반영) ---
+     # --- 3. 오늘 수업 정보 입력 폼 (시차 교정, 회차 리셋, 시간 입력 및 태도 점수 반영) ---
     with st.form("lesson_form"):
         st.write("### 📖 오늘 수업 정보")
-        c_d, c_n = st.columns(2)
         
         # ⏰ [시차 교정] 서버의 세계 표준시(UTC)를 한국 표준시(KST)로 변환 (+9시간)
-        # 6월 1일 오전인데 5월 31일로 뜨는 현상을 완벽하게 해결합니다.
         import datetime as dt
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, time
         
         now_kst = datetime.utcnow() + timedelta(hours=9)
         
-        # 날짜 기본값 설정 (수정 모드면 기존 날짜, 새 글이면 정확한 오늘 한국 날짜)
+        # 4개의 컬럼으로 레이아웃 복원 (날짜, 회차, 시작시간, 종료시간)
+        c1, c2, c3, c4 = st.columns(4)
+        
+        # [1] 날짜 기본값 설정
         d_val = datetime.strptime(st.session_state.edit_date, "%Y-%m-%d") if is_edit_mode else now_kst.date()
-        date_in = c_d.date_input("날짜", d_val, key=f"date_in{edit_suffix}")
+        date_in = c1.date_input("수업 날짜", d_val, key=f"date_in{edit_suffix}")
         
         # 🔢 [월별 회차 자동 리셋 로직] 
-        # 선택된 혹은 입력된 날짜의 '연도-월'을 추출합니다 (ex: "2026-06")
         current_ym = date_in.strftime('%Y-%m')
         
         if is_edit_mode:
-            # 수정 모드일 때는 기존에 저장했던 회차 번호를 그대로 유지
             next_s = int(st.session_state.get('edit_session_num', 1))
+            # 수정 모드 시 기존 시간 불러오기 기본값 설정
+            try:
+                init_st = datetime.strptime(st.session_state.get('edit_start_time', "14:00"), "%H:%M").time()
+                init_et = datetime.strptime(st.session_state.get('edit_end_time', "16:00"), "%H:%M").time()
+            except:
+                init_st, init_et = time(14,0), time(16,0)
         else:
+            init_st, init_et = time(14,0), time(16,0) # 새 수업 기본 시간 (오후 2시 ~ 4시)
+            
             if not all_sessions.empty:
-                # 1. 전체 데이터의 날짜 컬럼을 시계열로 변환 후 연-월 문자열 생성
                 all_sessions_cp = all_sessions.copy()
                 all_sessions_cp['date_dt'] = pd.to_datetime(all_sessions_cp['date'], errors='coerce')
                 all_sessions_cp['ym'] = all_sessions_cp['date_dt'].dt.strftime('%Y-%m')
                 
-                # 2. 이번 달(현재 입력 폼의 월)에 해당하는 기존 수업 데이터만 필터링
                 monthly_sessions = all_sessions_cp[all_sessions_cp['ym'] == current_ym]
                 
                 if not monthly_sessions.empty:
-                    # 이번 달에 이미 수업 기록이 있다면: 최대 회차 + 1
                     next_s = int(monthly_sessions['session_num'].max() + 1)
                 else:
-                    # 새로운 달의 첫 수업이라면: 1회차로 산뜻하게 리셋!
                     next_s = 1
             else:
                 next_s = 1
-
-        # 계산된 회차 번호를 입력창에 반영
-        sess_num = c_n.number_input("회차", value=next_s, key=f"sess_num{edit_suffix}")
-        p_list, h_list = [], []
+    
+        # [2] 계산된 회차 번호를 입력창에 반영
+        sess_num = c2.number_input("수업 회차", min_value=1, value=next_s, key=f"sess_num{edit_suffix}")
         
+        # [3] 복원된 수업 시작 및 종료 시간 입력창
+        in_st = c3.time_input("수업 시작", init_st, key=f"st{edit_suffix}")
+        in_et = c4.time_input("수업 종료", init_et, key=f"et{edit_suffix}")
+    
+        st.divider()
+        
+        # 🌟 [추가 추천 기능] 수업 태도 및 집중도 기록 칸
+        st.write("#### 🎯 오늘 수업 태도 평가")
+        tc1, tc2 = st.columns(2)
+        
+        # 학부모님께 직관적으로 전달하기 좋은 별점 5점 만점 형태
+        attitude_score = tc1.selectbox("🧠 수업 집중도", ["⭐⭐⭐⭐⭐ (매우 훌륭함)", "⭐⭐⭐⭐ (집중 잘함)", "⭐⭐⭐ (보통)", "⭐⭐ (산만함)", "⭐ (경고 필요)"], index=1, key=f"att_{edit_suffix}")
+        understanding_score = tc2.selectbox("💡 개념 이해도", ["⭐⭐⭐⭐⭐ (완벽히 이해)", "⭐⭐⭐⭐ (대부분 이해)", "⭐⭐⭐ (보통)", "⭐⭐ (어려워함)", "⭐ (복습 필수)"], index=1, key=f"und_{edit_suffix}")
+        
+        p_list, h_list = [], []
+            
         # --- 📖 진도 입력 섹션 (숙제 포맷과 동일하게 컴포넌트 분할) ---
         st.write("### 📖 진도")
         for i in range(st.session_state.p_rows):
