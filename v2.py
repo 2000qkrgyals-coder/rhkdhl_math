@@ -1166,8 +1166,10 @@ with tab4:
                             st.session_state.h_rows = 1
                             st.session_state["edit_h_val_0"] = ""
                         
-                        st.success("모든 원본 데이터를 성공적으로 백업했습니다. 탭 1로 이동합니다."); time.sleep(0.8); st.rerun()
-                
+                        st.success("모든 원본 데이터를 성공적으로 백업했습니다. 탭 1로 이동합니다.")
+                        import time as _time
+                        _time.sleep(0.8)
+                        st.rerun()
                 with c_btn2:
                     # ✨ 대망의 학부모 전송용 텍스트 복사 버튼 (텍스트 영역으로 시각화하여 복사 유도)
                     st.text_area("📱 아래 텍스트를 복사해서 카톡에 붙여넣으세요!", value=parent_message, height=180, key=f"msg_area_{row['id']}")
