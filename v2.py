@@ -608,7 +608,7 @@ with tab1:
             
             save_data(pd.concat([df_se, pd.DataFrame([new_row])], ignore_index=True), "sessions")
             st.success("저장되었습니다!")
-            time.sleep(1)
+            import time as _time; _time.sleep(1)
             full_reset()
 
     # 동적 행 제어 버튼 영역 (st.form 외부에 정확하게 정렬 배치)
