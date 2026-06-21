@@ -49,7 +49,7 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_data(worksheet_name):
     try:
-        df = conn.read(worksheet=worksheet_name, ttl="1s")
+        df = conn.read(worksheet=worksheet_name, ttl="10m")
         return df.dropna(how='all') 
     except Exception as e:
         st.error(f"로드 오류: {e}")
@@ -57,15 +57,18 @@ def load_data(worksheet_name):
 
 def save_data(df, worksheet_name):
     try:
-        # 숫자형 컬럼 강제 변환 (오답 통계 포함)
         num_cols = ['id', 'student_id', 'session_num', 'duration', 'hw_result_rate', 
                     'wrong_total', 'err_calc', 'err_concept', 'err_hard', 'err_understand']
         if not df.empty:
             for col in num_cols:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+                    
         conn.update(worksheet=worksheet_name, data=df)
+        
+        # ✨ 핵심: 데이터가 바뀐 순간에만 전체 캐시를 밀어버려 다음 로드 때 구글 시트를 읽도록 유도
         st.cache_data.clear() 
+        
     except Exception as e:
         st.error(f"저장 실패: {e}")
 
