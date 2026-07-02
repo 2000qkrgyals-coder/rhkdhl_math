@@ -586,7 +586,7 @@ with tab1:
         st.session_state.h_rows = max(1, st.session_state.h_rows - 1)
         st.rerun()
 
-# --- TAB 2: 학습 분석 (데일리 테스트 정답률 그래프 + 디자인 완성도 극대화 버전) ---
+# --- TAB 2: 학습 분석 (숙제 오답 분석 제외 버전) ---
 with tab2:
     st.markdown("## 📊 월별 상세 학습 통계")
     
@@ -602,17 +602,11 @@ with tab2:
             df_filtered['x_axis'] = df_filtered['date'].dt.strftime('%m/%d') + " (" + df_filtered['session_num'].astype(int).astype(str) + "회)"
             
             # 1. 데이터 기본 통계 집계
-            w_sums = df_filtered[['err_calc', 'err_concept', 'err_hard', 'err_understand']].sum()
-            t_w_sums = df_filtered[['test_calc', 'test_concept', 'test_hard', 'test_under']].sum()
             avg_hw = int(df_filtered['hw_result_rate'].mean())
             total_dur = int(df_filtered['duration'].sum())
             
             # --- 🤖 AI 월간 종합 피드백 텍스트 생성 ---
             st.markdown("### 🤖 AI 월간 종합 브리핑 룸")
-            
-            max_hw_err = w_sums.idxmax() if w_sums.sum() > 0 else "none"
-            err_mapping = {'err_calc': '계산 실수', 'err_concept': '개념 이해 부족', 'err_hard': '방법', 'err_understand': '문제 문해력(이해) 부족', 'none': '없음'}
-            main_err_name = err_mapping[max_hw_err]
             
             if avg_hw >= 90:
                 hw_comment = "과제 수행도가 매우 우수합니다. 자기주도 학습 습관이 잘 잡혀있어 진도를 계획대로 탄탄하게 나가고 있습니다."
@@ -628,7 +622,7 @@ with tab2:
             if not df_test_table.empty:
                 df_test_table['score_rate'] = (df_test_table['test_score'] / df_test_table['test_total'] * 100).astype(int)
                 avg_test_rate = int(df_test_table['score_rate'].mean())
-                test_comment = f"이번 달 데일리 테스트 평균 정답률은 {avg_test_rate}%입니다. 개념을 실전 문제에 적용하는 과정에서 주로 [{main_err_name}] 유형의 감점이 두드러졌습니다. 오답 노트를 통해 취약점을 확실히 메우도록 지도 중입니다."
+                test_comment = f"이번 달 데일리 테스트 평균 정답률은 {avg_test_rate}%입니다. 개념을 실전 문제에 적용하는 과정을 중점적으로 지도하고 있습니다."
             else:
                 avg_test_rate = "기록 없음"
                 test_comment = "이번 달 시행된 공식 데일리 테스트 피드백이 없습니다. 평소 단원 평가 성적을 기반으로 개념 다지기에 집중하고 있습니다."
@@ -645,7 +639,6 @@ with tab2:
 • 월평균 숙제 이행률: {avg_hw}% {status_star}
 • 월간 총 수업 시간: {total_dur}분
 • 데일리 테스트 평균 정답률: {avg_test_rate if isinstance(avg_test_rate, str) else f"{avg_test_rate}%"}
-• 주요 오답 원인 유형: {main_err_name}
 
 ━━━━━━━━━━━━━━━━━━━━
 📝 2. 담당 교사 종합 총평
@@ -673,45 +666,27 @@ with tab2:
 
             st.divider()
 
-            # --- 📌 2. 그래프 객체 생성 및 폰트 사전 세팅 (화면 브리핑용) ---
-            if w_sums.sum() > 0:
-                fig_hw_pie = px.pie(values=w_sums.values, names=['계산실수', '개념부족', '방법', '문제이해'], hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
-                fig_hw_pie.update_layout(margin=dict(t=20, b=20, l=10, r=10), width=350, height=300)
-            else: fig_hw_pie = None
-
-            if t_w_sums.sum() > 0:
-                fig_test_pie = px.pie(values=t_w_sums.values, names=['계산실수', '개념부족', '방법', '문제이해'], hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe)
-                fig_test_pie.update_layout(margin=dict(t=20, b=20, l=10, r=10), width=350, height=300)
-            else: fig_test_pie = None
-
+            # --- 📈 그래프 생성 ---
             # 📈 그래프 A: 회차별 숙제 이행률 라인
             fig_hw_line = px.line(df_filtered, x='x_axis', y='hw_result_rate', markers=True, text='hw_result_rate', title="📊 회차별 숙제 이행률 추이(%)")
             fig_hw_line.update_layout(xaxis_type='category', yaxis_range=[-5, 115], width=700, height=320)
             fig_hw_line.update_traces(textposition="top center")
+            st.plotly_chart(fig_hw_line)
 
             # 📈 그래프 B: 회차별 데일리 테스트 정답률 라인
             if not df_test_table.empty:
                 fig_test_line = px.line(df_test_table, x='x_axis', y='score_rate', markers=True, text='score_rate', title="🎯 회차별 데일리 테스트 정답률 추이(%)")
                 fig_test_line.update_layout(xaxis_type='category', yaxis_range=[-5, 115], width=700, height=320)
                 fig_test_line.update_traces(textposition="top center", line=dict(color='#EF4444', width=3))
-            else: fig_test_line = None
+                st.plotly_chart(fig_test_line)
 
-            # 📈 그래프 C: 회차별 숙제 오답 원인 누적 바
-            if w_sums.sum() > 0:
-                df_hw_bar = df_filtered.melt(id_vars=['x_axis'], value_vars=['err_calc', 'err_concept', 'err_hard', 'err_understand'], var_name='오답원인', value_name='개수')
-                df_hw_bar['오답원인'] = df_hw_bar['오답원인'].map({'err_calc': '계산실수', 'err_concept': '개념부족', 'err_hard': '방법', 'err_understand': '문제이해'})
-                fig_hw_bar = px.bar(df_hw_bar, x='x_axis', y='개수', color='오답원인', title="📖 회차별 숙제 오답 원인 추이", color_discrete_sequence=px.colors.qualitative.Pastel)
-                fig_hw_bar.update_layout(xaxis_type='category', width=700, height=320)
-            else: fig_hw_bar = None
-
-            # 📈 그래프 D: 회차별 테스트 오답 원인 누적 바
+            # 📈 그래프 C: 회차별 테스트 오답 원인 누적 바
             if t_w_sums.sum() > 0:
                 df_test_bar = df_filtered.melt(id_vars=['x_axis'], value_vars=['test_calc', 'test_concept', 'test_hard', 'test_under'], var_name='오답원인', value_name='개수')
                 df_test_bar['오답원인'] = df_test_bar['오답원인'].map({'test_calc': '계산실수', 'test_concept': '개념부족', 'test_hard': '방법', 'test_under': '문제이해'})
                 fig_test_bar = px.bar(df_test_bar, x='x_axis', y='개수', color='오답원인', title="📝 회차별 테스트 오답 원인 추이", color_discrete_sequence=px.colors.qualitative.Safe)
                 fig_test_bar.update_layout(xaxis_type='category', width=700, height=320)
-            else: fig_test_bar = None
-
+                st.plotly_chart(fig_test_bar)
 
             # --- 📄 [프로페셔널 조판] PDF 생성 내부 로직 보완 ---
             with btn_c2:
@@ -720,21 +695,21 @@ with tab2:
                     import urllib.request
                     import copy
                     from reportlab.lib.pagesizes import letter
-                    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, PageBreak, KeepTogether
+                    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, PageBreak, KeepTogether, HRFlowable
                     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
                     from reportlab.pdfbase import pdfmetrics
                     from reportlab.pdfbase.ttfonts import TTFont
                     from reportlab.lib import colors
-
+            
                     @st.cache_data
                     def download_pdf_font():
                         url = "https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Regular.ttf"
                         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
                         with urllib.request.urlopen(req) as res: return res.read()
-
+            
                     try: pdfmetrics.getFont('NanumGothic')
                     except KeyError: pdfmetrics.registerFont(TTFont('NanumGothic', io.BytesIO(download_pdf_font())))
-
+            
                     # --- 📄 [프로페셔널 조판] PDF 생성 내부 로직 수정 버전 ---
                     def build_full_report_pdf():
                         pdf_buffer = io.BytesIO()
@@ -744,155 +719,35 @@ with tab2:
                         t_style = ParagraphStyle('T1', parent=styles['Heading1'], fontName='NanumGothic', fontSize=18, leading=24, spaceAfter=12, textColor=colors.HexColor('#1E3A8A'))
                         sub_style = ParagraphStyle('T2', parent=styles['Heading2'], fontName='NanumGothic', fontSize=11, leading=15, spaceBefore=14, spaceAfter=6, textColor=colors.HexColor('#1E3A8A'))
                         b_style = ParagraphStyle('B1', parent=styles['Normal'], fontName='NanumGothic', fontSize=9.5, leading=16, spaceAfter=4, textColor=colors.HexColor('#334155'))
-                        guide_style = ParagraphStyle('GD', parent=styles['Normal'], fontName='NanumGothic', fontSize=8.5, leading=13, alignment=1, textColor=colors.HexColor('#1E3A8A'))
                         
                         story = []
                     
-                        # --- PAGE 1: 숙제 관련 그래프 ---
-                        story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 (1/3)</b>", t_style))
+                        # --- PAGE 1: 전체 통계 및 테스트 관련 ---
+                        story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석</b>", t_style))
                         
-                        upper_block = []
-                        lower_block = []
-                        
+                        # 숙제 이행률 라인 차트 추가
                         if fig_hw_line:
                             pdf_hw_line = copy.deepcopy(fig_hw_line)
-                            pdf_hw_line.update_layout(
-                                title="회차별 숙제 이행률 (%)",
-                                xaxis_title="회차",
-                                yaxis_title="이행률 (%)",
-                                font=dict(family="NanumGothic", size=10),
-                                margin=dict(t=25, b=25)
-                            )
+                            pdf_hw_line.update_layout(title="회차별 숙제 이행률 (%)", xaxis_title="회차", yaxis_title="이행률 (%)", font=dict(family="NanumGothic", size=10), margin=dict(t=25, b=25))
+                            story.extend([Paragraph("<b>[1] 회차별 숙제 이행률 추이</b>", sub_style), Image(io.BytesIO(pdf_hw_line.to_image(format="png")), width=500, height=220)])
                         
-                            upper_block.extend([
-                                Paragraph("<b>[1] 회차별 숙제 이행률 추이 그래프</b>", sub_style),
-                                Image(io.BytesIO(pdf_hw_line.to_image(format="png")), width=500, height=220)
-                            ])
-                        
-                        if fig_hw_bar:
-                            pdf_hw_bar = copy.deepcopy(fig_hw_bar)
-                            pdf_hw_bar.update_layout(
-                                title="회차별 숙제 오답 원인 추이",
-                                xaxis_title="회차",
-                                yaxis_title="개수",
-                                legend_title="오답원인",
-                                font=dict(family="NanumGothic", size=10),
-                                margin=dict(t=25, b=25)
-                            )
-                        
-                            lower_block.extend([
-                                Paragraph("<b>[2] 숙제 회차별 오답 원인 분석 그래프</b>", sub_style),
-                                Image(io.BytesIO(pdf_hw_bar.to_image(format="png")), width=500, height=220)
-                            ])
-                        
-                        for item in upper_block:
-                            story.append(item)
-                        
-                        story.append(Spacer(1, 75))
-                        
-                        divider = HRFlowable(
-                            width="100%",
-                            thickness=1.5,
-                            color=colors.HexColor("#CBD5E1"),
-                            spaceBefore=5,
-                            spaceAfter=10
-                        )
-                        
-                        story.append(divider)
-                        
-                        for item in lower_block:
-                            story.append(item)
-                        
-                        story.append(PageBreak())
-                        # --- PAGE 2: 테스트 관련 그래프 ---
-                        story.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 (2/3)</b>", t_style))
-                        
-                        upper_block = []
-                        lower_block = []
-                        
+                        # 테스트 라인 차트 추가
                         if fig_test_line:
                             pdf_test_line = copy.deepcopy(fig_test_line)
-                            pdf_test_line.update_layout(
-                                title="회차별 데일리 테스트 정답률 추이 (%)",
-                                xaxis_title="회차",
-                                yaxis_title="정답률 (%)",
-                                font=dict(family="NanumGothic", size=10),
-                                margin=dict(t=25, b=25)
-                            )
-                        
-                            upper_block.extend([
-                                Paragraph("<b>[3] 회차별 데일리 테스트 결과 그래프</b>", sub_style),
-                                Image(io.BytesIO(pdf_test_line.to_image(format="png")), width=500, height=220)
-                            ])
-                        
+                            pdf_test_line.update_layout(title="회차별 데일리 테스트 정답률 (%)", xaxis_title="회차", yaxis_title="정답률 (%)", font=dict(family="NanumGothic", size=10), margin=dict(t=25, b=25))
+                            story.extend([Paragraph("<b>[2] 회차별 데일리 테스트 정답률 추이</b>", sub_style), Image(io.BytesIO(pdf_test_line.to_image(format="png")), width=500, height=220)])
+            
+                        # 테스트 오답 원인 바 차트 추가
                         if fig_test_bar:
                             pdf_test_bar = copy.deepcopy(fig_test_bar)
-                            pdf_test_bar.update_layout(
-                                title="회차별 테스트 오답 원인 추이",
-                                xaxis_title="회차",
-                                yaxis_title="개수",
-                                legend_title="오답원인",
-                                font=dict(family="NanumGothic", size=10),
-                                margin=dict(t=25, b=25)
-                            )
-                        
-                            lower_block.extend([
-                                Paragraph("<b>[4] 데일리 테스트 오답 회차별 통계 그래프</b>", sub_style),
-                                Image(io.BytesIO(pdf_test_bar.to_image(format="png")), width=500, height=220)
-                            ])
-                        
-                        for item in upper_block:
-                            story.append(item)
-                        
-                        story.append(Spacer(1, 75))
-                        
-                        divider = HRFlowable(
-                            width="100%",
-                            thickness=1.5,
-                            color=colors.HexColor("#CBD5E1"),
-                            spaceBefore=5,
-                            spaceAfter=10
-                        )
-                        
-                        story.append(divider)
-                        
-                        for item in lower_block:
-                            story.append(item)
-                        
-                        story.append(PageBreak())
-                        # --- PAGE 3: 종합 피드백 ---
-                        p3_blocks = []
-                        p3_blocks.append(Paragraph(f"<b>📊 {selected_month} 월간 종합 학습 분석 (3/3)</b>", t_style))
-                        
-                        # 5. 파이 차트 (오답 비중)
-                        img_pie_list = []
-                        if fig_hw_pie:
-                            pdf_hw_pie = copy.deepcopy(fig_hw_pie)
-                            pdf_hw_pie.update_layout(title="월간 숙제 오답 분포", font=dict(family="NanumGothic", size=9))
-                            pdf_hw_pie.update_traces(labels=['계산실수', '개념부족', '방법', '문제이해'])
-                            img_pie_list.append(Image(io.BytesIO(pdf_hw_pie.to_image(format="png")), width=220, height=180))
-                        
-                        if fig_test_pie:
-                            pdf_test_pie = copy.deepcopy(fig_test_pie)
-                            pdf_test_pie.update_layout(title="월간 테스트 오답 분포", font=dict(family="NanumGothic", size=9))
-                            pdf_test_pie.update_traces(labels=['계산실수', '개념부족', '방법', '문제이해'])
-                            img_pie_list.append(Image(io.BytesIO(pdf_test_pie.to_image(format="png")), width=220, height=180))
-                            
-                        if img_pie_list:
-                            t_charts = Table([img_pie_list], colWidths=[250, 250])
-                            p3_blocks.append(Paragraph("<b>[5] 월간 누적 전체 오답 유형 비중 분포</b>", sub_style))
-                            p3_blocks.append(t_charts)
-                        
-                        # --- 여기에 구분선과 여백 추가 ---
-                        p3_blocks.append(Spacer(1, 20)) # 그래프와 구분선 사이 여백
-                        p3_blocks.append(HRFlowable(
-                            width="100%", thickness=1.5, color=colors.HexColor("#CBD5E1"), 
-                            spaceBefore=10, spaceAfter=10
-                        ))
-                        p3_blocks.append(Spacer(1, 10)) # 구분선과 피드백 사이 여백
-                        
-                        # 종합 피드백
-                        p3_blocks.append(Paragraph(f"<b>[6] 담당 교사 월간 종합 피드백</b>", t_style))
+                            pdf_test_bar.update_layout(title="회차별 테스트 오답 원인 추이", xaxis_title="회차", yaxis_title="개수", font=dict(family="NanumGothic", size=10), margin=dict(t=25, b=25))
+                            story.extend([Paragraph("<b>[3] 데일리 테스트 오답 유형 분석</b>", sub_style), Image(io.BytesIO(pdf_test_bar.to_image(format="png")), width=500, height=220)])
+            
+                        story.append(Spacer(1, 20))
+                        story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#CBD5E1"), spaceBefore=10, spaceAfter=10))
+            
+                        # --- 종합 피드백 ---
+                        story.append(Paragraph(f"<b>[4] 담당 교사 월간 종합 피드백</b>", t_style))
                         f_body = [Paragraph(line.strip(), b_style) for line in edited_report.split('\n') if line.strip() and not any(x in line for x in ['📊', '📌', '📝', '━━━━━━━━━━━━━━━━━━━━'])]
                         t_feedback = Table([[f_body]], colWidths=[520])
                         t_feedback.setStyle(TableStyle([
@@ -901,13 +756,12 @@ with tab2:
                             ('LINELEFT', (0,0), (0,-1), 4, colors.HexColor('#1E3A8A')), 
                             ('PADDING', (0,0), (-1,-1), 10)
                         ]))
-                        p3_blocks.append(t_feedback)
-                        
-                        story.append(KeepTogether(p3_blocks))
+                        story.append(t_feedback)
                         
                         doc.build(story)
                         return pdf_buffer.getvalue()
-                    # 다운로드 버튼 매핑
+            
+                    # 다운로드 버튼
                     st.download_button(
                         label="📄 완벽 조판 종합 학습분석 PDF 다운로드",
                         data=build_full_report_pdf(),
@@ -921,28 +775,23 @@ with tab2:
 
             # --- 📌 3. 화면 UI 시각화 렌더링 영역 ---
             st.markdown("### 📌 월간 통계 데이터 시각화 (화면 브리핑용)")
-            m1, m2, m3, m4 = st.columns(4)
+            m1, m2, m3 = st.columns(3)
             m1.metric("📈 월평균 이행률", f"{avg_hw}%")
             m2.metric("⏱️ 총 수업시간", f"{total_dur}분")
-            m3.metric("📝 누적 숙제 오답", f"{int(w_sums.sum())}개")
-            m4.metric("🔥 누적 테스트 오답", f"{int(t_w_sums.sum())}개")
+            m3.metric("🔥 누적 테스트 오답", f"{int(t_w_sums.sum())}개")
             
-            an_col1, an_col2 = st.columns(2)
-            with an_col1:
-                st.write("**[📖 월간 숙제 오답 분포]**")
-                if fig_hw_pie: st.plotly_chart(fig_hw_pie, use_container_width=True)
-                else: st.caption("💡 숙제 오답 데이터가 없습니다.")
-            
+            # 숙제 오답 분포 영역 제거됨
+            an_col1, an_col2 = st.columns([1, 2])
             with an_col2:
                 st.write("**[📝 월간 테스트 오답 분포]**")
                 if fig_test_pie: st.plotly_chart(fig_test_pie, use_container_width=True)
                 else: st.caption("💡 테스트 오답 데이터가 없습니다.")
-
+            
             st.divider()
             
             st.markdown("### 📈 회차별 상세 변화 추이")
-            # 💡 기존 3개 탭에서 "📝 테스트 정답률" 탭을 추가하여 총 4개 탭 구조로 고도화
-            chart_tab1, chart_tab2, chart_tab3, chart_tab4 = st.tabs(["✍️ 숙제 이행률", "🎯 테스트 정답률", "📖 숙제 오답 추이", "📝 테스트 오답 추이"])
+            # 숙제 오답 추이 탭 제거 및 탭 구조 조정
+            chart_tab1, chart_tab2, chart_tab4 = st.tabs(["✍️ 숙제 이행률", "🎯 테스트 정답률", "📝 테스트 오답 추이"])
             
             with chart_tab1:
                 st.plotly_chart(fig_hw_line, use_container_width=True)
@@ -951,19 +800,15 @@ with tab2:
                     st.plotly_chart(fig_test_line, use_container_width=True)
             else:
                 with chart_tab2: st.caption("💡 테스트 성적 추이 데이터가 없습니다.")
-            if fig_hw_bar:
-                with chart_tab3:
-                    st.plotly_chart(fig_hw_bar, use_container_width=True)
-            else:
-                with chart_tab3: st.caption("💡 숙제 오답 추이 데이터가 없습니다.")
+            
             if fig_test_bar:
                 with chart_tab4:
                     st.plotly_chart(fig_test_bar, use_container_width=True)
             else:
                 with chart_tab4: st.caption("💡 테스트 오답 추이 데이터가 없습니다.")
-
+            
             st.divider()
-
+            
             st.markdown("### 🏆 월간 데일리 테스트 리포트")
             if not df_test_table.empty:
                 for idx, row in df_test_table.iterrows():
@@ -976,7 +821,7 @@ with tab2:
                     status_emoji = "🟢 [최우수]" if t_rate >= 90 else "🔵 [양호]" if t_rate >= 70 else "🟡 [보완필요]"
                     
                     with st.expander(f"{status_emoji} {t_date} | **{t_name}** 👉 정답률 {t_rate}%", expanded=True):
-                        tc_1, tc_2, tc_3 = st.columns([1, 1, 2])
+                        tc_1, tc_2 = st.columns([1, 2])
                         tc_1.metric("맞은 문항 수", f"{t_score} / {t_total} 문항")
                         
                         err_parts = []
@@ -986,10 +831,9 @@ with tab2:
                         if row['test_under'] > 0: err_parts.append(f"문제이해({int(row['test_under'])})")
                         
                         err_text = ", ".join(err_parts) if err_parts else "틀린 문제 없음 (만점! 💯)"
-                        tc_3.markdown(f"🔍 **오답 세부 원인:**\n\n`{err_text}`")
-            else: st.info("💡 이번 달에 진행된 데일리 테스트 기록이 존재하지 않습니다.")
-                
-    else: st.info("📊 학습 분석을 진행할 세션 데이터가 아직 입력되지 않았습니다.")
+                        tc_2.markdown(f"🔍 **오답 세부 원인:**\n\n`{err_text}`")
+            else: 
+                st.info("💡 이번 달에 진행된 데일리 테스트 기록이 존재하지 않습니다.")
 # --- TAB 3: 교재 관리 ---
 with tab3:
     st.subheader("📚 교재 목록")
