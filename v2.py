@@ -619,7 +619,7 @@ with tab2:
             st.markdown("### 🤖 AI 월간 종합 브리핑 룸")
             
             max_hw_err = w_sums.idxmax() if w_sums.sum() > 0 else "none"
-            err_mapping = {'err_calc': '계산 실수', 'err_concept': '개념 이해 부족', 'err_hard': '방법', 'err_understand': '문제 문해력(이해) 부족', 'none': '없음'}
+            err_mapping = {'err_calc': '계산 실수', 'err_concept': '개념 이해 부족', 'err_hard': '방법', 'err_understand': '문제 문해력(이해) 부족'}
             main_err_name = err_mapping[max_hw_err]
             
             if avg_hw >= 90:
