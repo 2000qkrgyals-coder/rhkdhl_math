@@ -636,7 +636,7 @@ with tab2:
             if not df_test_table.empty:
                 df_test_table['score_rate'] = (df_test_table['test_score'] / df_test_table['test_total'] * 100).astype(int)
                 avg_test_rate = int(df_test_table['score_rate'].mean())
-                test_comment = f"이번 달 데일리 테스트 평균 정답률은 {avg_test_rate}%입니다. 개념을 실전 문제에 적용하는 과정에서 주로 [{main_err_name}] 유형의 감점이 두드러졌습니다. 오답 노트를 통해 취약점을 확실히 메우도록 지도 중입니다."
+                test_comment = f"이번 달 데일리 테스트 평균 정답률은 {avg_test_rate}%입니다. 주로 [{main_err_name}] 유형의 감점이 두드러졌습니다."
             else:
                 avg_test_rate = "기록 없음"
                 test_comment = "이번 달 시행된 공식 데일리 테스트 피드백이 없습니다. 평소 단원 평가 성적을 기반으로 개념 다지기에 집중하고 있습니다."
