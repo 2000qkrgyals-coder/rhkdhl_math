@@ -379,7 +379,7 @@ with tab1:
     st.write("### 📝 데일리 테스트 결과")
     edit_t_total = safe_int(st.session_state.get('edit_test_total', 0))
     use_test = st.checkbox("오늘 데일리 테스트 실시", value=(edit_t_total > 0), key=f"use_test{edit_suffix}")
-    
+    t_w_sums = df_filtered[['test_calc', 'test_concept', 'test_hard', 'test_under']].sum()
     if use_test:
         tc1, tc2, tc3 = st.columns([2, 1, 1])
         t_name = tc1.text_input("테스트 명", value=st.session_state.get('edit_test_name', "단원평가"), key=f"t_name{edit_suffix}")
@@ -589,7 +589,6 @@ with tab1:
 # --- TAB 2: 학습 분석 (숙제 오답 분석 제외 버전) ---
 with tab2:
     st.markdown("## 📊 월별 상세 학습 통계")
-    t_w_sums = df_filtered[['test_calc', 'test_concept', 'test_hard', 'test_under']].sum()
     df_ana = df_se[df_se['student_id'] == s_id].copy()
     if not df_ana.empty:
         df_ana['date'] = pd.to_datetime(df_ana['date'])
