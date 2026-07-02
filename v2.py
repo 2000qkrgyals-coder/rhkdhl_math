@@ -379,7 +379,6 @@ with tab1:
     st.write("### 📝 데일리 테스트 결과")
     edit_t_total = safe_int(st.session_state.get('edit_test_total', 0))
     use_test = st.checkbox("오늘 데일리 테스트 실시", value=(edit_t_total > 0), key=f"use_test{edit_suffix}")
-    t_w_sums = df_filtered[['test_calc', 'test_concept', 'test_hard', 'test_under']].sum()
     if use_test:
         tc1, tc2, tc3 = st.columns([2, 1, 1])
         t_name = tc1.text_input("테스트 명", value=st.session_state.get('edit_test_name', "단원평가"), key=f"t_name{edit_suffix}")
