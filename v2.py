@@ -602,6 +602,8 @@ with tab2:
             # 1. 데이터 기본 통계 집계
             avg_hw = int(df_filtered['hw_result_rate'].mean())
             total_dur = int(df_filtered['duration'].sum())
+
+            t_w_sums = df_filtered[['test_calc', 'test_concept', 'test_hard', 'test_under']].sum()
             
             # --- 🤖 AI 월간 종합 피드백 텍스트 생성 ---
             st.markdown("### 🤖 AI 월간 종합 브리핑 룸")
