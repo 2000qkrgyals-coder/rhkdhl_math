@@ -618,9 +618,14 @@ with tab2:
             # --- 🤖 AI 월간 종합 피드백 텍스트 생성 ---
             st.markdown("### 🤖 AI 월간 종합 브리핑 룸")
             max_hw_err = w_sums.idxmax() if w_sums.sum() > 0 else "none"
-            err_mapping = {'test_calc': '계산 실수', 'test_concept': '개념 이해 부족', 'test_hard': '방법', 'test_under': '문제 문해력(이해) 부족', 'none': '없음'}
+            err_mapping = {'err_calc': '계산 실수', 'err_concept': '개념 이해 부족', 'err_hard': '방법', 'err_understand': '문제 문해력(이해) 부족', 'none': '없음'}
             main_err_name = err_mapping[max_hw_err]
-            
+
+            # 2. 테스트 오답 분석 (추가 및 수정)
+            max_test_err = t_w_sums.idxmax() if t_w_sums.sum() > 0 else "none"
+            test_mapping = {'test_calc': '계산 실수', 'test_concept': '개념 이해 부족', 'test_hard': '방법', 'test_under': '문제 문해력(이해) 부족', 'none': '없음'}
+            main_test_err_name = test_mapping[max_test_err]
+
             if avg_hw >= 90:
                 hw_comment = "과제 수행도가 매우 우수합니다. 자기주도 학습 습관이 잘 잡혀있어 진도를 계획대로 탄탄하게 나가고 있습니다."
                 status_star = "⭐⭐⭐⭐⭐ (최우수)"
@@ -635,7 +640,8 @@ with tab2:
             if not df_test_table.empty:
                 df_test_table['score_rate'] = (df_test_table['test_score'] / df_test_table['test_total'] * 100).astype(int)
                 avg_test_rate = int(df_test_table['score_rate'].mean())
-                test_comment = f"이번 달 데일리 테스트 평균 정답률은 {avg_test_rate}%입니다. 주로 [{main_err_name}] 유형의 감점이 두드러졌습니다."
+                # 여기서 main_test_err_name을 사용하도록 수정
+                test_comment = f"이번 달 데일리 테스트 평균 정답률은 {avg_test_rate}%입니다. 주로 [{main_test_err_name}] 유형의 감점이 두드러졌습니다."
             else:
                 avg_test_rate = "기록 없음"
                 test_comment = "이번 달 시행된 공식 데일리 테스트 피드백이 없습니다. 평소 단원 평가 성적을 기반으로 개념 다지기에 집중하고 있습니다."
