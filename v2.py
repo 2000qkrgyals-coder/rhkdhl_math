@@ -673,6 +673,17 @@ with tab2:
             fig_hw_line.update_traces(textposition="top center")
             st.plotly_chart(fig_hw_line)
 
+            # 📈 [추가] 테스트 오답 파이 차트 객체 생성
+            if t_w_sums.sum() > 0:
+                fig_test_pie = px.pie(
+                    values=t_w_sums.values, 
+                    names=['계산실수', '개념부족', '방법', '문제이해'], 
+                    hole=0.4, 
+                    color_discrete_sequence=px.colors.qualitative.Safe
+                )
+            else:
+                fig_test_pie = None
+
             # 📈 그래프 B: 회차별 데일리 테스트 정답률 라인
             if not df_test_table.empty:
                 fig_test_line = px.line(df_test_table, x='x_axis', y='score_rate', markers=True, text='score_rate', title="🎯 회차별 데일리 테스트 정답률 추이(%)")
