@@ -362,13 +362,6 @@ with tab1:
         final_rate = int((acc_done / acc_total * 100)) if acc_total > 0 else 100
         st.info(f"📊 **이행률: {final_rate}%** (총 {acc_total}페이지/문항 중 {acc_done} 완료)")
 
-        st.write("#### ❌ 숙제 오답 분석")
-        w_total = st.number_input("전체 숙제 오답 개수", min_value=0, value=safe_int(st.session_state.get('edit_w_total', 0)), key=f"w_total{edit_suffix}")
-        wc1, wc2, wc3, wc4 = st.columns(4)
-        w_calc = wc1.number_input("계산실수", min_value=0, value=safe_int(st.session_state.get('edit_w_calc', 0)), key=f"w_calc{edit_suffix}")
-        w_concept = wc2.number_input("개념부족", min_value=0, value=safe_int(st.session_state.get('edit_w_concept', 0)), key=f"w_concept{edit_suffix}")
-        w_hard = wc3.number_input("방법", min_value=0, value=safe_int(st.session_state.get('edit_w_hard', 0)), key=f"w_hard{edit_suffix}")
-        w_under = wc4.number_input("문제이해", min_value=0, value=safe_int(st.session_state.get('edit_w_under', 0)), key=f"w_under{edit_suffix}")
     else:
         final_rate, w_total, w_calc, w_concept, w_hard, w_under = 100, 0, 0, 0, 0, 0
 
@@ -565,7 +558,6 @@ with tab1:
                 'duration': int(dur),
                 'hw_detail': " | ".join(check_list), 'progress': " | ".join(p_list),
                 'hw_result_rate': int(final_rate), 'next_hw': " | ".join(h_list), 'feedback': fback,
-                'wrong_total': w_total, 'err_calc': w_calc, 'err_concept': w_concept, 'err_hard': w_hard, 'err_understand': w_under,
                 'test_name': t_name, 'test_total': t_total, 'test_score': t_score,
                 'test_calc': t_calc, 'test_concept': t_concept, 'test_hard': t_hard, 'test_under': t_under
             }
