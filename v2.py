@@ -623,7 +623,7 @@ with tab2:
 
             # 2. 테스트 오답 분석 (추가 및 수정)
             max_test_err = t_w_sums.idxmax() if t_w_sums.sum() > 0 else "none"
-            test_mapping = {'test_calc': '계산 실수', 'test_concept': '개념 이해 부족', 'test_hard': '방법', 'test_under': '문제 문해력(이해) 부족', 'none': '없음'}
+            test_mapping = {'test_calc': '계산 실수', 'test_concept': '개념 부족', 'test_hard': '방법', 'test_under': '문제 문해력(이해) 부족', 'none': '없음'}
             main_test_err_name = test_mapping[max_test_err]
 
             if avg_hw >= 90:
