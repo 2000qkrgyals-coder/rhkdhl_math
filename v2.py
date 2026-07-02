@@ -589,7 +589,7 @@ with tab1:
 # --- TAB 2: 학습 분석 (숙제 오답 분석 제외 버전) ---
 with tab2:
     st.markdown("## 📊 월별 상세 학습 통계")
-    
+    t_w_sums = df_filtered[['test_calc', 'test_concept', 'test_hard', 'test_under']].sum()
     df_ana = df_se[df_se['student_id'] == s_id].copy()
     if not df_ana.empty:
         df_ana['date'] = pd.to_datetime(df_ana['date'])
